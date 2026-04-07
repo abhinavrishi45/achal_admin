@@ -382,7 +382,7 @@ export default function CareersPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Short Description</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Job Description</label>
                   <textarea
                     name="shortDescription"
                     rows="2"
@@ -394,7 +394,7 @@ export default function CareersPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Detailed Specifications</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Key Responsibilites</label>
                   <textarea
                     name="details"
                     rows="6"
