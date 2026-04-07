@@ -73,7 +73,8 @@ export default function Sidebar() {
     { name: "Careers", href: "/dashboard/careers", icon: BriefcaseBusiness },
     { name: "Applicants", href: "/dashboard/applicants", icon: Users },
     { name: "Blog", href: "/dashboard/blog", icon: PenTool },
-    { name: "Quotes", href: "/dashboard/quotes", icon: FileText }
+    { name: "Quotes", href: "/dashboard/quotes", icon: FileText },
+    {name: "FAQs", href: "/dashboard/faq", icon: Info },
   ];
 
   const toggleDropdown = (name) => {
