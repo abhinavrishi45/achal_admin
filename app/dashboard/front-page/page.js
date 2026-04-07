@@ -196,7 +196,7 @@ const BLANK = {
   aboutBody2: "",
   aboutValues: [{ title: "", desc: "" }],
   portfolioItems: [{ img: "", tag: "", name: "" }],
-  whypartner: [{ title: "", description: "" }],
+  whypartner: [{ number: "", title: "", description: "" }],
   testimonials: [{ quote: "", name: "", role: "", rating: "", image: "" }],
   ctaHeadline: "",
   ctaSubtext: "",
@@ -253,7 +253,7 @@ export default function FrontPage() {
           aboutBody2: rec.aboutBody2 ?? "",
           aboutValues: safeParse(rec.aboutValues, [{ title: "", desc: "" }]),
           portfolioItems: safeParse(rec.portfolioItems, [{ img: "", tag: "", name: "" }]),
-          whypartner: safeParse(rec.whyPartner, [{ title: "", description: "" }]),
+          whypartner: safeParse(rec.whyPartner, [{ number: "", title: "", description: "" }]),
           testimonials: safeParse(rec.testimonials, [{ quote: "", name: "", role: "", rating: "", image: "" }]),
           ctaHeadline: rec.ctaHeadline ?? "",
           ctaSubtext: rec.ctaSubtext ?? "",
@@ -573,11 +573,20 @@ export default function FrontPage() {
             <div className="space-y-3 mb-3">
               {form.whypartner.map((wp, i) => (
                 <ListCard key={i} onRemove={() => removeItem("whypartner", i)} canRemove={form.whypartner.length > 1}>
-                  <Field label="Title">
-                    <input type="text" value={wp.title}
-                      onChange={(e) => setItem("whypartner", i, "title", e.target.value)}
-                      className={inputCls} placeholder="e.g. Innovation First" />
-                  </Field>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Field label="Number" hint="Display order (1, 2, 3...)">
+                      <input type="number" min="1" value={wp.number}
+                        onChange={(e) => setItem("whypartner", i, "number", e.target.value)}
+                        className={inputCls} placeholder="e.g. 1" />
+                    </Field>
+                    <div className="col-span-2">
+                      <Field label="Title">
+                        <input type="text" value={wp.title}
+                          onChange={(e) => setItem("whypartner", i, "title", e.target.value)}
+                          className={inputCls} placeholder="e.g. Innovation First" />
+                      </Field>
+                    </div>
+                  </div>
                   <Field label="Description" hint="Max 200 characters">
                     <input type="text" value={wp.description}
                       onChange={(e) => setItem("whypartner", i, "description", e.target.value)}
@@ -587,7 +596,7 @@ export default function FrontPage() {
                 </ListCard>
               ))}
             </div>
-            <AddButton onClick={() => addItem("whypartner", { title: "", description: "" })} label="Add Reason" />
+            <AddButton onClick={() => addItem("whypartner", { number: "", title: "", description: "" })} label="Add Reason" />
           </Section>
 
           {/* 8. Testimonials */}
