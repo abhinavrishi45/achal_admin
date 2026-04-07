@@ -9,6 +9,17 @@ import {
 } from "lucide-react";
 
 const API_BASE = "https://achal-backend-trial.tannis.in/api/frontpage";
+const UPLOAD_API = "https://achal-backend-trial.tannis.in/api/uploads";
+
+// ─── File to Base64 converter ──────────────────────────────────────────────────
+const fileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
 // ─── Shared style constants ───────────────────────────────────────────────────
 const inputCls =
@@ -68,6 +79,72 @@ function Toast({ toast }) {
   );
 }
 
+// ─── Image Upload Handler ─────────────────────────────────────────────────────
+function ImageUploadField({ value, onChange, label, hint }) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const res = await fetch(UPLOAD_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: file.name,
+          mimeType: file.type,
+          data: base64,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Upload failed");
+      const result = await res.json();
+      onChange(result.url || result.path);
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert(`Upload failed: ${err.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      {hint && <p className="text-xs text-gray-400 mb-1.5">{hint}</p>}
+      <div className="flex gap-2">
+        <input
+          type="url"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={inputCls}
+          placeholder="https://images.unsplash.com/photo-…"
+        />
+        <label className="relative">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            disabled={uploading}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={(e) => e.currentTarget.parentElement.querySelector('input[type="file"]').click()}
+            disabled={uploading}
+            className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            {uploading ? "Uploading..." : "Upload"}
+          </button>
+        </label>
+      </div>
+    </div>
+  );
+}
+
 // ─── Collapsible Section ──────────────────────────────────────────────────────
 function Section({ icon: Icon, number, title, subtitle, children, defaultOpen = true, badge }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -106,26 +183,26 @@ function Section({ icon: Icon, number, title, subtitle, children, defaultOpen = 
 
 // ─── Default form state ───────────────────────────────────────────────────────
 const BLANK = {
-  heroSlides:      [{ img: "", label: "" }],
-  tickerItems:     [{ label: "", value: "" }],
-  yoe:             "",
+  heroSlides: [{ img: "", label: "" }],
+  tickerItems: [{ label: "", value: "" }],
+  yoe: "",
   numberOfClients: "",
-  numberOfProjects:"",
-  teamMembers:     "",
-  services:        [{ name: "", description: "" }],
-  aboutHeading:    "",
-  aboutBody:       "",
-  aboutQuote:      "",
-  aboutBody2:      "",
-  aboutValues:     [{ title: "", desc: "" }],
-  portfolioItems:  [{ img: "", tag: "", name: "" }],
-  whypartner:      [{ title: "", description: "" }],
-  testimonials:    [{ quote: "", name: "", role: "" }],
-  ctaHeadline:     "",
-  ctaSubtext:      "",
-  mission:         "",
-  vision:          "",
-  commitment:      "",
+  numberOfProjects: "",
+  teamMembers: "",
+  services: [{ name: "", description: "" }],
+  aboutHeading: "",
+  aboutBody: "",
+  aboutQuote: "",
+  aboutBody2: "",
+  aboutValues: [{ title: "", desc: "" }],
+  portfolioItems: [{ img: "", tag: "", name: "" }],
+  whypartner: [{ title: "", description: "" }],
+  testimonials: [{ quote: "", name: "", role: "", rating: "", image: "" }],
+  ctaHeadline: "",
+  ctaSubtext: "",
+  mission: "",
+  vision: "",
+  commitment: "",
 };
 
 // ─── JSON parse helper ────────────────────────────────────────────────────────
@@ -141,11 +218,11 @@ const safeParse = (raw, fallback) => {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function FrontPage() {
-  const [form, setForm]       = useState(BLANK);
+  const [form, setForm] = useState(BLANK);
   const [recordId, setRecordId] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(false);
-  const [toast, setToast]     = useState({ show: false, message: "", type: "success" });
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
 
   const showToast = (msg, type = "success") => {
     setToast({ show: true, message: msg, type });
@@ -159,30 +236,30 @@ export default function FrontPage() {
       const res = await fetch(API_BASE);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      const rec  = Array.isArray(data) ? data[0] : data;
+      const rec = Array.isArray(data) ? data[0] : data;
       if (rec) {
         setRecordId(rec.id ?? null);
         setForm({
-          heroSlides:       safeParse(rec.heroSlides,     [{ img: "", label: "" }]),
-          tickerItems:      safeParse(rec.tickerItems,    [{ label: "", value: "" }]),
-          yoe:              rec.yoe              ?? "",
-          numberOfClients:  rec.numberOfClients  ?? "",
+          heroSlides: safeParse(rec.heroSlides, [{ img: "", label: "" }]),
+          tickerItems: safeParse(rec.tickerItems, [{ label: "", value: "" }]),
+          yoe: rec.yoe ?? "",
+          numberOfClients: rec.numberOfClients ?? "",
           numberOfProjects: rec.numberOfProjects ?? "",
-          teamMembers:      rec.teamMembers      ?? "",
-          services:         safeParse(rec.services,       [{ name: "", description: "" }]),
-          aboutHeading:     rec.aboutHeading     ?? "",
-          aboutBody:        rec.aboutBody        ?? "",
-          aboutQuote:       rec.aboutQuote       ?? "",
-          aboutBody2:       rec.aboutBody2       ?? "",
-          aboutValues:      safeParse(rec.aboutValues,    [{ title: "", desc: "" }]),
-          portfolioItems:   safeParse(rec.portfolioItems, [{ img: "", tag: "", name: "" }]),
-          whypartner:       safeParse(rec.whyPartner,     [{ title: "", description: "" }]),
-          testimonials:     safeParse(rec.testimonials,   [{ quote: "", name: "", role: "" }]),
-          ctaHeadline:      rec.ctaHeadline      ?? "",
-          ctaSubtext:       rec.ctaSubtext       ?? "",
-          mission:          rec.mission          ?? "",
-          vision:           rec.vision           ?? "",
-          commitment:       rec.commitment       ?? "",
+          teamMembers: rec.teamMembers ?? "",
+          services: safeParse(rec.services, [{ name: "", description: "" }]),
+          aboutHeading: rec.aboutHeading ?? "",
+          aboutBody: rec.aboutBody ?? "",
+          aboutQuote: rec.aboutQuote ?? "",
+          aboutBody2: rec.aboutBody2 ?? "",
+          aboutValues: safeParse(rec.aboutValues, [{ title: "", desc: "" }]),
+          portfolioItems: safeParse(rec.portfolioItems, [{ img: "", tag: "", name: "" }]),
+          whypartner: safeParse(rec.whyPartner, [{ title: "", description: "" }]),
+          testimonials: safeParse(rec.testimonials, [{ quote: "", name: "", role: "", rating: "", image: "" }]),
+          ctaHeadline: rec.ctaHeadline ?? "",
+          ctaSubtext: rec.ctaSubtext ?? "",
+          mission: rec.mission ?? "",
+          vision: rec.vision ?? "",
+          commitment: rec.commitment ?? "",
         });
       }
     } catch {
@@ -204,37 +281,37 @@ export default function FrontPage() {
       return { ...f, [key]: arr };
     });
 
-  const addItem   = (key, blank)  => setForm((f) => ({ ...f, [key]: [...f[key], { ...blank }] }));
-  const removeItem = (key, idx)   => setForm((f) => ({ ...f, [key]: f[key].filter((_, i) => i !== idx) }));
+  const addItem = (key, blank) => setForm((f) => ({ ...f, [key]: [...f[key], { ...blank }] }));
+  const removeItem = (key, idx) => setForm((f) => ({ ...f, [key]: f[key].filter((_, i) => i !== idx) }));
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     const payload = {
-      heroSlides:       JSON.stringify(form.heroSlides),
-      tickerItems:      JSON.stringify(form.tickerItems),
-      yoe:              form.yoe              ? parseInt(form.yoe, 10)              : null,
-      numberOfClients:  form.numberOfClients  ? parseInt(form.numberOfClients, 10)  : null,
+      heroSlides: JSON.stringify(form.heroSlides),
+      tickerItems: JSON.stringify(form.tickerItems),
+      yoe: form.yoe ? parseInt(form.yoe, 10) : null,
+      numberOfClients: form.numberOfClients ? parseInt(form.numberOfClients, 10) : null,
       numberOfProjects: form.numberOfProjects ? parseInt(form.numberOfProjects, 10) : null,
-      teamMembers:      form.teamMembers      ? parseInt(form.teamMembers, 10)      : null,
-      services:         JSON.stringify(form.services),
-      aboutHeading:     form.aboutHeading,
-      aboutBody:        form.aboutBody,
-      aboutQuote:       form.aboutQuote,
-      aboutBody2:       form.aboutBody2,
-      aboutValues:      JSON.stringify(form.aboutValues),
-      portfolioItems:   JSON.stringify(form.portfolioItems),
-      whyPartner:       JSON.stringify(form.whypartner),
-      testimonials:     JSON.stringify(form.testimonials),
-      ctaHeadline:      form.ctaHeadline,
-      ctaSubtext:       form.ctaSubtext,
-      mission:          form.mission,
-      vision:           form.vision,
-      commitment:       form.commitment,
+      teamMembers: form.teamMembers ? parseInt(form.teamMembers, 10) : null,
+      services: JSON.stringify(form.services),
+      aboutHeading: form.aboutHeading,
+      aboutBody: form.aboutBody,
+      aboutQuote: form.aboutQuote,
+      aboutBody2: form.aboutBody2,
+      aboutValues: JSON.stringify(form.aboutValues),
+      portfolioItems: JSON.stringify(form.portfolioItems),
+      whyPartner: JSON.stringify(form.whypartner),
+      testimonials: JSON.stringify(form.testimonials),
+      ctaHeadline: form.ctaHeadline,
+      ctaSubtext: form.ctaSubtext,
+      mission: form.mission,
+      vision: form.vision,
+      commitment: form.commitment,
     };
     try {
-      const url    = recordId ? `${API_BASE}/${recordId}` : API_BASE;
+      const url = recordId ? `${API_BASE}/${recordId}` : API_BASE;
       const method = recordId ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
@@ -291,11 +368,12 @@ export default function FrontPage() {
             <div className="space-y-3 mb-3">
               {form.heroSlides.map((s, i) => (
                 <ListCard key={i} onRemove={() => removeItem("heroSlides", i)} canRemove={form.heroSlides.length > 1}>
-                  <Field label="Image URL" hint="High-res recommended (1400px+). Unsplash or CDN hosted.">
-                    <input type="url" value={s.img}
-                      onChange={(e) => setItem("heroSlides", i, "img", e.target.value)}
-                      className={inputCls} placeholder="https://images.unsplash.com/photo-…" />
-                  </Field>
+                  <ImageUploadField
+                    label="Image URL"
+                    hint="High-res recommended (1400px+). Upload or paste URL."
+                    value={s.img}
+                    onChange={(url) => setItem("heroSlides", i, "img", url)}
+                  />
                   {s.img && (
                     <div className="rounded-lg overflow-hidden h-24 bg-gray-200">
                       <img src={s.img} alt="preview" className="w-full h-full object-cover opacity-80" />
@@ -342,10 +420,10 @@ export default function FrontPage() {
             subtitle="Animated counters shown in the dark stats band.">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {[
-                { label: "Years of Excellence",  key: "yoe",              ph: "e.g. 12"   },
-                { label: "Global Clients",        key: "numberOfClients",  ph: "e.g. 4000" },
-                { label: "Projects Delivered",    key: "numberOfProjects", ph: "e.g. 500"  },
-                { label: "Specialists On Board",  key: "teamMembers",      ph: "e.g. 200"  },
+                { label: "Years of Excellence", key: "yoe", ph: "e.g. 12" },
+                { label: "Global Clients", key: "numberOfClients", ph: "e.g. 4000" },
+                { label: "Projects Delivered", key: "numberOfProjects", ph: "e.g. 500" },
+                { label: "Specialists On Board", key: "teamMembers", ph: "e.g. 200" },
               ].map(({ label, key, ph }) => (
                 <Field key={key} label={label}>
                   <input type="number" min="0" value={form[key]}
@@ -459,11 +537,12 @@ export default function FrontPage() {
                   {i === 0 && (
                     <p className="text-xs font-semibold text-blue-500 uppercase tracking-wider">★ Featured — full-width banner</p>
                   )}
-                  <Field label="Image URL">
-                    <input type="url" value={p.img}
-                      onChange={(e) => setItem("portfolioItems", i, "img", e.target.value)}
-                      className={inputCls} placeholder="https://images.unsplash.com/photo-…" />
-                  </Field>
+                  <ImageUploadField
+                    label="Image URL"
+                    hint="Upload or paste URL. Portrait images recommended."
+                    value={p.img}
+                    onChange={(url) => setItem("portfolioItems", i, "img", url)}
+                  />
                   {p.img && (
                     <div className="rounded-lg overflow-hidden h-20 bg-gray-200">
                       <img src={p.img} alt="preview" className="w-full h-full object-cover opacity-80" />
@@ -518,6 +597,17 @@ export default function FrontPage() {
             <div className="space-y-3 mb-3">
               {form.testimonials.map((t, i) => (
                 <ListCard key={i} onRemove={() => removeItem("testimonials", i)} canRemove={form.testimonials.length > 1}>
+                  <ImageUploadField
+                    label="Client Image"
+                    hint="Upload or paste URL. Square images recommended (200x200px)."
+                    value={t.image}
+                    onChange={(url) => setItem("testimonials", i, "image", url)}
+                  />
+                  {t.image && (
+                    <div className="rounded-lg overflow-hidden w-24 h-24 bg-gray-200">
+                      <img src={t.image} alt="client" className="w-full h-full object-cover" />
+                    </div>
+                  )}
                   <Field label="Quote">
                     <textarea rows={2} value={t.quote}
                       onChange={(e) => setItem("testimonials", i, "quote", e.target.value)}
@@ -536,10 +626,22 @@ export default function FrontPage() {
                         className={inputCls} placeholder="e.g. Construction Manager" />
                     </Field>
                   </div>
+                  <Field label="Rating" hint="Star rating from 1-5">
+                    <select value={t.rating}
+                      onChange={(e) => setItem("testimonials", i, "rating", e.target.value)}
+                      className={inputCls}>
+                      <option value="">Select rating…</option>
+                      <option value="1">⭐ 1 - Poor</option>
+                      <option value="2">⭐⭐ 2 - Fair</option>
+                      <option value="3">⭐⭐⭐ 3 - Good</option>
+                      <option value="4">⭐⭐⭐⭐ 4 - Very Good</option>
+                      <option value="5">⭐⭐⭐⭐⭐ 5 - Excellent</option>
+                    </select>
+                  </Field>
                 </ListCard>
               ))}
             </div>
-            <AddButton onClick={() => addItem("testimonials", { quote: "", name: "", role: "" })} label="Add Testimonial" />
+            <AddButton onClick={() => addItem("testimonials", { quote: "", name: "", role: "", rating: "", image: "" })} label="Add Testimonial" />
           </Section>
 
           {/* 9. CTA */}

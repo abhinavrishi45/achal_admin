@@ -86,9 +86,7 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-[#1e2336] text-gray-300 flex flex-col min-h-screen sticky top-0 left-0">
       <div className="p-6 flex items-center space-x-3">
-        <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center">
-          <div className="w-5 h-5 bg-white rounded-sm transform rotate-45"></div>
-        </div>
+       
         <span className="text-white text-xl font-bold tracking-wide">Achal</span>
       </div>
 

@@ -8,14 +8,14 @@ export default function Header() {
         <button className="md:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-md">
           <Menu className="w-5 h-5" />
         </button>
-        <div className="relative hidden md:block">
+        {/* <div className="relative hidden md:block">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Search Achal.com..."
             className="pl-9 pr-4 py-2 bg-gray-100 border-none rounded-md text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
           />
-        </div>
+        </div> */}
       </div>
 
       <div className="flex items-center space-x-4">
