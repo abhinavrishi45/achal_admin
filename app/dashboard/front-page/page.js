@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 const API_BASE = "https://achal-backend-trial.tannis.in/api/frontpage";
-const UPLOAD_API = "https://achal-backend-trial.tannis.in/api/uploads";
+const UPLOAD_API = "https://achal-backend-trial.tannis.in/api/upload";
 
 // ─── Compress + convert image file to base64 ──────────────────────────────────
 // Resizes the image on a canvas so the base64 payload stays under the
