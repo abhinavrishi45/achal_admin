@@ -4,44 +4,40 @@ import { useState, useEffect } from "react";
 import {
   Save, Loader2, RefreshCw, Plus, Trash2,
   ChevronDown, ChevronUp, Image, BarChart2,
-  Layers, BookOpen, Briefcase, Star, MessageSquare,
+  Layers, BookOpen, Briefcase, MessageSquare,
   Megaphone, HelpCircle, Ticket
 } from "lucide-react";
 
-const API_BASE = "https://achal-backend-trial.tannis.in/api/frontpage";
-const UPLOAD_API = "https://achal-backend-trial.tannis.in/api/upload";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://achal-backend-trial.tannis.in";
 
-// ─── Compress + convert image file to base64 ──────────────────────────────────
-// Resizes the image on a canvas so the base64 payload stays under the
-// server's 1.5 MB limit (MAX_BASE64_LENGTH = 1500000).
-const compressImageToBase64 = (file, maxWidth = 1400, quality = 0.82) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = (e) => {
-      const img = new window.Image();
-      img.onerror = reject;
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+// ─── Upload helper (matches your working ServicePage upload exactly) ───────────
+const fileToBase64 = (file) => new Promise((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(r.result);
+  r.onerror = (e) => rej(e);
+  r.readAsDataURL(file);
+});
 
-        // Keep PNG only for transparent images; everything else → JPEG (much smaller)
-        const mimeType = file.type === "image/png" ? "image/png" : "image/jpeg";
-        const dataUrl = canvas.toDataURL(mimeType, quality);
-        resolve({ dataUrl, mimeType });
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
+async function uploadFile(file) {
+  if (!file) return null;
+  const dataUrl = await fileToBase64(file);
+  if (dataUrl.length > 1_200_000) {
+    alert('Image too large. Please compress it or use a smaller image.');
+    return null;
+  }
+  const res = await fetch(`${API_BASE}/api/upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: file.name, mimeType: file.type, data: dataUrl }),
   });
-};
+  if (!res.ok) {
+    let msg = `Upload failed (${res.status})`;
+    try { const j = await res.json(); msg = j.message || msg; } catch (_) {}
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  return data.url || data.path || null;
+}
 
 // ─── Shared style constants ───────────────────────────────────────────────────
 const inputCls =
@@ -109,35 +105,12 @@ function ImageUploadField({ value, onChange, label, hint }) {
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setUploadError("");
-    e.target.value = ""; // allow re-selecting same file after an error
-
+    e.target.value = ""; // allow re-selecting same file
     setUploading(true);
     try {
-      // Compress before sending so we stay under the server's 1.5 MB base64 limit
-      const { dataUrl, mimeType } = await compressImageToBase64(file);
-
-      const res = await fetch(UPLOAD_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filename: file.name,
-          mimeType,
-          data: dataUrl, // backend strips the data-URL prefix itself
-        }),
-      });
-
-      // Always try to parse JSON so we can surface the server's error message
-      let result;
-      try { result = await res.json(); } catch { result = {}; }
-
-      if (!res.ok) {
-        throw new Error(result.message || `Server error ${res.status}`);
-      }
-      if (!result.url) throw new Error("Upload succeeded but no URL was returned.");
-
-      onChange(result.url);
+      const url = await uploadFile(file);
+      if (url) onChange(url);
     } catch (err) {
       console.error("Upload error:", err);
       setUploadError(err.message || "Upload failed");
@@ -156,7 +129,7 @@ function ImageUploadField({ value, onChange, label, hint }) {
           value={value}
           onChange={(e) => { onChange(e.target.value); setUploadError(""); }}
           className={inputCls}
-          placeholder="https://images.unsplash.com/photo-..."
+          placeholder="https://..."
         />
         <label className="relative">
           <input
@@ -179,7 +152,6 @@ function ImageUploadField({ value, onChange, label, hint }) {
           </button>
         </label>
       </div>
-      {/* Inline error message shown under the field */}
       {uploadError && (
         <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
@@ -251,7 +223,6 @@ const BLANK = {
 };
 
 // ─── JSON parse helper ────────────────────────────────────────────────────────
-// Handles both pre-parsed arrays (backend parses before sending) and raw JSON strings.
 const safeParse = (raw, fallback) => {
   if (raw == null) return fallback;
   if (Array.isArray(raw)) return raw.length > 0 ? raw : fallback;
@@ -283,15 +254,13 @@ export default function FrontPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(API_BASE);
+      const res = await fetch(`${API_BASE}/api/frontpage`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      console.log("API Response:", data);
       const rec = Array.isArray(data) ? data[0] : data;
-      console.log("Processing record:", rec);
       if (rec) {
         setRecordId(rec.id ?? null);
-        const formData = {
+        setForm({
           heroSlides: safeParse(rec.heroSlides, [{ img: "", label: "" }]),
           tickerItems: safeParse(rec.tickerItems, [{ label: "", value: "" }]),
           yoe: rec.yoe != null ? String(rec.yoe) : "",
@@ -312,9 +281,7 @@ export default function FrontPage() {
           mission: rec.mission ?? "",
           vision: rec.vision ?? "",
           commitment: rec.commitment ?? "",
-        };
-        console.log("Setting form data:", formData);
-        setForm(formData);
+        });
       }
     } catch {
       showToast("Failed to load data. Backend may be unreachable.", "error");
@@ -372,7 +339,7 @@ export default function FrontPage() {
     };
 
     try {
-      const url = recordId ? `${API_BASE}/${recordId}` : API_BASE;
+      const url = recordId ? `${API_BASE}/api/frontpage/${recordId}` : `${API_BASE}/api/frontpage`;
       const method = recordId ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
@@ -381,7 +348,6 @@ export default function FrontPage() {
       });
       if (!res.ok) throw new Error();
       const result = await res.json();
-      console.log("Save response:", result);
       if (!recordId && result.id) setRecordId(result.id);
       showToast("Front page saved successfully!");
     } catch (err) {
