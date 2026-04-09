@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   Save, Loader2, RefreshCw, Plus, Trash2,
   ChevronDown, ChevronUp, Image, BarChart2,
@@ -11,12 +11,34 @@ import {
 const API_BASE = "https://achal-backend-trial.tannis.in/api/frontpage";
 const UPLOAD_API = "https://achal-backend-trial.tannis.in/api/uploads";
 
-// ─── File to Base64 converter ──────────────────────────────────────────────────
-const fileToBase64 = (file) => {
+// ─── Compress + convert image file to base64 ──────────────────────────────────
+// Resizes the image on a canvas so the base64 payload stays under the
+// server's 1.5 MB limit (MAX_BASE64_LENGTH = 1500000).
+const compressImageToBase64 = (file, maxWidth = 1400, quality = 0.82) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+
+        // Keep PNG only for transparent images; everything else → JPEG (much smaller)
+        const mimeType = file.type === "image/png" ? "image/png" : "image/jpeg";
+        const dataUrl = canvas.toDataURL(mimeType, quality);
+        resolve({ dataUrl, mimeType });
+      };
+      img.src = e.target.result;
+    };
     reader.readAsDataURL(file);
   });
 };
@@ -79,38 +101,48 @@ function Toast({ toast }) {
   );
 }
 
-// ─── Image Upload Handler ─────────────────────────────────────────────────────
+// ─── Image Upload Field ───────────────────────────────────────────────────────
 function ImageUploadField({ value, onChange, label, hint }) {
   const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef(null);
+  const [uploadError, setUploadError] = useState("");
 
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setUploadError("");
+    e.target.value = ""; // allow re-selecting same file after an error
+
     setUploading(true);
     try {
-      const base64 = await fileToBase64(file);
+      // Compress before sending so we stay under the server's 1.5 MB base64 limit
+      const { dataUrl, mimeType } = await compressImageToBase64(file);
+
       const res = await fetch(UPLOAD_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           filename: file.name,
-          mimeType: file.type,
-          data: base64,
+          mimeType,
+          data: dataUrl, // backend strips the data-URL prefix itself
         }),
       });
 
-      if (!res.ok) throw new Error("Upload failed");
-      const result = await res.json();
-      onChange(result.url || result.path);
+      // Always try to parse JSON so we can surface the server's error message
+      let result;
+      try { result = await res.json(); } catch { result = {}; }
+
+      if (!res.ok) {
+        throw new Error(result.message || `Server error ${res.status}`);
+      }
+      if (!result.url) throw new Error("Upload succeeded but no URL was returned.");
+
+      onChange(result.url);
     } catch (err) {
       console.error("Upload error:", err);
-      alert(`Upload failed: ${err.message}`);
+      setUploadError(err.message || "Upload failed");
     } finally {
       setUploading(false);
-      // Reset file input
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -122,27 +154,38 @@ function ImageUploadField({ value, onChange, label, hint }) {
         <input
           type="url"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => { onChange(e.target.value); setUploadError(""); }}
           className={inputCls}
           placeholder="https://images.unsplash.com/photo-..."
         />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileSelect}
-          disabled={uploading}
-          className="hidden"
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-        >
-          {uploading ? "Uploading..." : "Upload"}
-        </button>
+        <label className="relative">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            disabled={uploading}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={(e) => e.currentTarget.parentElement.querySelector('input[type="file"]').click()}
+            disabled={uploading}
+            className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1.5"
+          >
+            {uploading
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading...</>
+              : "Upload"
+            }
+          </button>
+        </label>
       </div>
+      {/* Inline error message shown under the field */}
+      {uploadError && (
+        <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
+          {uploadError}
+        </p>
+      )}
     </div>
   );
 }
@@ -207,15 +250,11 @@ const BLANK = {
   commitment: "",
 };
 
-// ─── JSON parse helper — handles BOTH pre-parsed arrays AND JSON strings ──────
-// FIX: The backend already calls JSON.parse before sending the response,
-// so fields arrive as real arrays. The old safeParse only handled strings
-// and would throw + fall back to the empty default every time.
+// ─── JSON parse helper ────────────────────────────────────────────────────────
+// Handles both pre-parsed arrays (backend parses before sending) and raw JSON strings.
 const safeParse = (raw, fallback) => {
   if (raw == null) return fallback;
-  // Already a parsed array (backend sends pre-parsed JSON)
   if (Array.isArray(raw)) return raw.length > 0 ? raw : fallback;
-  // Still a JSON string (defensive — handles both cases)
   if (typeof raw === "string") {
     try {
       const p = JSON.parse(raw);
@@ -252,8 +291,6 @@ export default function FrontPage() {
       console.log("Processing record:", rec);
       if (rec) {
         setRecordId(rec.id ?? null);
-        // FIX: numeric fields use String(rec.field ?? "") so that
-        // a value of 0 still populates correctly in <input type="number">
         const formData = {
           heroSlides: safeParse(rec.heroSlides, [{ img: "", label: "" }]),
           tickerItems: safeParse(rec.tickerItems, [{ label: "", value: "" }]),
@@ -268,7 +305,6 @@ export default function FrontPage() {
           aboutBody2: rec.aboutBody2 ?? "",
           aboutValues: safeParse(rec.aboutValues, [{ title: "", desc: "" }]),
           portfolioItems: safeParse(rec.portfolioItems, [{ img: "", tag: "", name: "" }]),
-          // FIX: backend field is "whyPartner" (capital P) — must match exactly
           whypartner: safeParse(rec.whyPartner, [{ number: "", title: "", description: "" }]),
           testimonials: safeParse(rec.testimonials, [{ quote: "", name: "", role: "", rating: "", image: "" }]),
           ctaHeadline: rec.ctaHeadline ?? "",
@@ -307,7 +343,6 @@ export default function FrontPage() {
     e.preventDefault();
     setSaving(true);
 
-    // Process whyPartner to convert number field to integers
     const processedWhyPartner = form.whypartner.map(item => ({
       ...item,
       number: item.number ? parseInt(item.number, 10) : null,
@@ -335,6 +370,7 @@ export default function FrontPage() {
       vision: form.vision,
       commitment: form.commitment,
     };
+
     try {
       const url = recordId ? `${API_BASE}/${recordId}` : API_BASE;
       const method = recordId ? "PUT" : "POST";
