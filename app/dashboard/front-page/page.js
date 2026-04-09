@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Save, Loader2, RefreshCw, Plus, Trash2,
   ChevronDown, ChevronUp, Image, BarChart2,
@@ -82,6 +82,7 @@ function Toast({ toast }) {
 // ─── Image Upload Handler ─────────────────────────────────────────────────────
 function ImageUploadField({ value, onChange, label, hint }) {
   const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -108,6 +109,8 @@ function ImageUploadField({ value, onChange, label, hint }) {
       alert(`Upload failed: ${err.message}`);
     } finally {
       setUploading(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -123,23 +126,22 @@ function ImageUploadField({ value, onChange, label, hint }) {
           className={inputCls}
           placeholder="https://images.unsplash.com/photo-..."
         />
-        <label className="relative">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileSelect}
-            disabled={uploading}
-            className="hidden"
-          />
-          <button
-            type="button"
-            onClick={(e) => e.currentTarget.parentElement.querySelector('input[type="file"]').click()}
-            disabled={uploading}
-            className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-          >
-            {uploading ? "Uploading..." : "Upload"}
-          </button>
-        </label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileSelect}
+          disabled={uploading}
+          className="hidden"
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+        >
+          {uploading ? "Uploading..." : "Upload"}
+        </button>
       </div>
     </div>
   );
