@@ -121,7 +121,7 @@ function ImageUploadField({ value, onChange, label, hint }) {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={inputCls}
-          placeholder="https://images.unsplash.com/photo-…"
+          placeholder="https://images.unsplash.com/photo-..."
         />
         <label className="relative">
           <input
@@ -205,15 +205,24 @@ const BLANK = {
   commitment: "",
 };
 
-// ─── JSON parse helper ────────────────────────────────────────────────────────
+// ─── JSON parse helper — handles BOTH pre-parsed arrays AND JSON strings ──────
+// FIX: The backend already calls JSON.parse before sending the response,
+// so fields arrive as real arrays. The old safeParse only handled strings
+// and would throw + fall back to the empty default every time.
 const safeParse = (raw, fallback) => {
-  if (!raw) return fallback;
-  try {
-    const p = JSON.parse(raw);
-    return Array.isArray(p) && p.length ? p : fallback;
-  } catch {
-    return fallback;
+  if (raw == null) return fallback;
+  // Already a parsed array (backend sends pre-parsed JSON)
+  if (Array.isArray(raw)) return raw.length > 0 ? raw : fallback;
+  // Still a JSON string (defensive — handles both cases)
+  if (typeof raw === "string") {
+    try {
+      const p = JSON.parse(raw);
+      return Array.isArray(p) && p.length > 0 ? p : fallback;
+    } catch {
+      return fallback;
+    }
   }
+  return fallback;
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -241,13 +250,15 @@ export default function FrontPage() {
       console.log("Processing record:", rec);
       if (rec) {
         setRecordId(rec.id ?? null);
+        // FIX: numeric fields use String(rec.field ?? "") so that
+        // a value of 0 still populates correctly in <input type="number">
         const formData = {
           heroSlides: safeParse(rec.heroSlides, [{ img: "", label: "" }]),
           tickerItems: safeParse(rec.tickerItems, [{ label: "", value: "" }]),
-          yoe: rec.yoe ?? "",
-          numberOfClients: rec.numberOfClients ?? "",
-          numberOfProjects: rec.numberOfProjects ?? "",
-          teamMembers: rec.teamMembers ?? "",
+          yoe: rec.yoe != null ? String(rec.yoe) : "",
+          numberOfClients: rec.numberOfClients != null ? String(rec.numberOfClients) : "",
+          numberOfProjects: rec.numberOfProjects != null ? String(rec.numberOfProjects) : "",
+          teamMembers: rec.teamMembers != null ? String(rec.teamMembers) : "",
           services: safeParse(rec.services, [{ name: "", description: "" }]),
           aboutHeading: rec.aboutHeading ?? "",
           aboutBody: rec.aboutBody ?? "",
@@ -255,6 +266,7 @@ export default function FrontPage() {
           aboutBody2: rec.aboutBody2 ?? "",
           aboutValues: safeParse(rec.aboutValues, [{ title: "", desc: "" }]),
           portfolioItems: safeParse(rec.portfolioItems, [{ img: "", tag: "", name: "" }]),
+          // FIX: backend field is "whyPartner" (capital P) — must match exactly
           whypartner: safeParse(rec.whyPartner, [{ number: "", title: "", description: "" }]),
           testimonials: safeParse(rec.testimonials, [{ quote: "", name: "", role: "", rating: "", image: "" }]),
           ctaHeadline: rec.ctaHeadline ?? "",
@@ -369,7 +381,7 @@ export default function FrontPage() {
       {loading ? (
         <div className="bg-white rounded-xl border border-gray-100 p-12 flex flex-col items-center justify-center min-h-[400px]">
           <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-4" />
-          <p className="text-gray-400 text-sm">Loading front page data…</p>
+          <p className="text-gray-400 text-sm">Loading front page data...</p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -463,7 +475,7 @@ export default function FrontPage() {
                     <input type="text" value={svc.description}
                       onChange={(e) => setItem("services", i, "description", e.target.value)}
                       maxLength={150} className={inputCls}
-                      placeholder="Precision structural development & large-scale infrastructure…" />
+                      placeholder="Precision structural development & large-scale infrastructure..." />
                   </Field>
                 </ListCard>
               ))}
@@ -484,7 +496,7 @@ export default function FrontPage() {
               <Field label="Body Paragraph 1">
                 <textarea rows={3} value={form.aboutBody}
                   onChange={(e) => set("aboutBody", e.target.value)} className={textareaCls}
-                  placeholder="ACHAL INTERNATIONAL PRIVATE LIMITED was incorporated in 2014…" />
+                  placeholder="ACHAL INTERNATIONAL PRIVATE LIMITED was incorporated in 2014..." />
               </Field>
               <Field label="Pull Quote" hint="Displayed as a styled blockquote">
                 <input type="text" value={form.aboutQuote}
@@ -494,7 +506,7 @@ export default function FrontPage() {
               <Field label="Body Paragraph 2">
                 <textarea rows={3} value={form.aboutBody2}
                   onChange={(e) => set("aboutBody2", e.target.value)} className={textareaCls}
-                  placeholder="Registered in Bihar, we have grown into a multi-disciplinary powerhouse…" />
+                  placeholder="Registered in Bihar, we have grown into a multi-disciplinary powerhouse..." />
               </Field>
 
               <div>
@@ -526,7 +538,7 @@ export default function FrontPage() {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Mission / Vision / Commitment</p>
                 <Field label="Mission">
                   <textarea rows={2} value={form.mission} onChange={(e) => set("mission", e.target.value)} className={textareaCls}
-                    placeholder="To provide professional, dedicated, one-point service excellence…" />
+                    placeholder="To provide professional, dedicated, one-point service excellence..." />
                 </Field>
                 <Field label="Vision">
                   <textarea rows={2} value={form.vision} onChange={(e) => set("vision", e.target.value)} className={textareaCls}
@@ -604,7 +616,7 @@ export default function FrontPage() {
                     <input type="text" value={wp.description}
                       onChange={(e) => setItem("whypartner", i, "description", e.target.value)}
                       maxLength={200} className={inputCls}
-                      placeholder="Cutting-edge technology and engineering solutions…" />
+                      placeholder="Cutting-edge technology and engineering solutions..." />
                   </Field>
                 </ListCard>
               ))}
@@ -634,7 +646,7 @@ export default function FrontPage() {
                     <textarea rows={2} value={t.quote}
                       onChange={(e) => setItem("testimonials", i, "quote", e.target.value)}
                       className={textareaCls}
-                      placeholder="Exceptional engineering expertise. ACHAL delivered on time and within budget…" />
+                      placeholder="Exceptional engineering expertise. ACHAL delivered on time and within budget..." />
                   </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Client Name">
@@ -652,7 +664,7 @@ export default function FrontPage() {
                     <select value={t.rating}
                       onChange={(e) => setItem("testimonials", i, "rating", e.target.value)}
                       className={inputCls}>
-                      <option value="">Select rating…</option>
+                      <option value="">Select rating...</option>
                       <option value="1">⭐ 1 - Poor</option>
                       <option value="2">⭐⭐ 2 - Fair</option>
                       <option value="3">⭐⭐⭐ 3 - Good</option>
@@ -692,7 +704,7 @@ export default function FrontPage() {
               className="flex items-center gap-2 px-7 py-3 bg-[#1e2336] text-white rounded-lg hover:bg-[#29324c] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#1e2336] transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-md font-semibold text-sm"
             >
               {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-              {saving ? "Saving…" : "Save Changes"}
+              {saving ? "Saving..." : "Save Changes"}
             </button>
           </div>
 
