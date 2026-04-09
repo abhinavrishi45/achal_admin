@@ -236,10 +236,12 @@ export default function FrontPage() {
       const res = await fetch(API_BASE);
       if (!res.ok) throw new Error();
       const data = await res.json();
+      console.log("API Response:", data);
       const rec = Array.isArray(data) ? data[0] : data;
+      console.log("Processing record:", rec);
       if (rec) {
         setRecordId(rec.id ?? null);
-        setForm({
+        const formData = {
           heroSlides: safeParse(rec.heroSlides, [{ img: "", label: "" }]),
           tickerItems: safeParse(rec.tickerItems, [{ label: "", value: "" }]),
           yoe: rec.yoe ?? "",
@@ -260,7 +262,9 @@ export default function FrontPage() {
           mission: rec.mission ?? "",
           vision: rec.vision ?? "",
           commitment: rec.commitment ?? "",
-        });
+        };
+        console.log("Setting form data:", formData);
+        setForm(formData);
       }
     } catch {
       showToast("Failed to load data. Backend may be unreachable.", "error");
@@ -288,6 +292,13 @@ export default function FrontPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
+
+    // Process whyPartner to convert number field to integers
+    const processedWhyPartner = form.whypartner.map(item => ({
+      ...item,
+      number: item.number ? parseInt(item.number, 10) : null,
+    }));
+
     const payload = {
       heroSlides: JSON.stringify(form.heroSlides),
       tickerItems: JSON.stringify(form.tickerItems),
@@ -302,7 +313,7 @@ export default function FrontPage() {
       aboutBody2: form.aboutBody2,
       aboutValues: JSON.stringify(form.aboutValues),
       portfolioItems: JSON.stringify(form.portfolioItems),
-      whyPartner: JSON.stringify(form.whypartner),
+      whyPartner: JSON.stringify(processedWhyPartner),
       testimonials: JSON.stringify(form.testimonials),
       ctaHeadline: form.ctaHeadline,
       ctaSubtext: form.ctaSubtext,
@@ -320,9 +331,11 @@ export default function FrontPage() {
       });
       if (!res.ok) throw new Error();
       const result = await res.json();
+      console.log("Save response:", result);
       if (!recordId && result.id) setRecordId(result.id);
       showToast("Front page saved successfully!");
-    } catch {
+    } catch (err) {
+      console.error("Save error:", err);
       showToast("Error saving data. Please try again.", "error");
     } finally {
       setSaving(false);
