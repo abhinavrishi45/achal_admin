@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Edit2, Trash2, X, Check, Search, Info, Settings, LayoutTemplate, Users, Briefcase, BarChart, Handshake, Database } from "lucide-react";
+import { Plus, Edit2, Trash2, X, Check, Search, Upload, Image as ImageIcon } from "lucide-react";
 
-export default function AboutUsPage() {
+const API_BASE = "https://achal-backend-trial.tannis.in";
+
+export default function AboutUsAdmin() {
   const [abouts, setAbouts] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("content"); // 'content', 'team', 'work', 'other'
-
+  
   const defaultForm = {
     title: "",
     intro: "",
@@ -19,41 +20,69 @@ export default function AboutUsPage() {
     work: [],
     partners: [],
     stats: [],
-    data: [],
-    isPublished: false,
   };
 
   const [formData, setFormData] = useState(defaultForm);
 
   useEffect(() => {
-    loadData();
+    loadAbouts();
   }, []);
 
-  const loadData = async () => {
+  const loadAbouts = async () => {
     try {
-      const response = await fetch("https://achal-backend-trial.tannis.in/api/about");
-      if (response.ok) {
-        const data = await response.json();
-        setAbouts(Array.isArray(data) ? data : data.abouts || data.data || []);
+      const res = await fetch(`${API_BASE}/api/about`);
+      if (res.ok) {
+        const data = await res.json();
+        setAbouts(Array.isArray(data) ? data : []);
       }
     } catch (error) {
-      console.error("Failed to load about us data:", error);
+      console.error("Failed to load:", error);
+    }
+  };
+
+  // Simple image to base64 conversion
+  const convertToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleImageUpload = async (e, arrayName, index, field) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image size should be less than 2MB');
+      return;
+    }
+
+    try {
+      const base64 = await convertToBase64(file);
+      handleArrayChange(arrayName, index, field, base64);
+    } catch (error) {
+      console.error('Error converting image:', error);
+      alert('Failed to upload image');
     }
   };
 
   const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Helper for dynamic arrays
   const handleArrayChange = (arrayName, index, field, value) => {
     setFormData((prev) => {
-      const base = Array.isArray(prev[arrayName]) ? prev[arrayName] : [];
-      const newArray = [...base];
+      const newArray = [...(prev[arrayName] || [])];
       newArray[index] = { ...newArray[index], [field]: value };
       return { ...prev, [arrayName]: newArray };
     });
@@ -62,32 +91,29 @@ export default function AboutUsPage() {
   const addArrayItem = (arrayName, defaultObj) => {
     setFormData((prev) => ({
       ...prev,
-      [arrayName]: [...(Array.isArray(prev[arrayName]) ? prev[arrayName] : []), defaultObj]
+      [arrayName]: [...(prev[arrayName] || []), defaultObj]
     }));
   };
 
   const removeArrayItem = (arrayName, index) => {
-    setFormData((prev) => {
-      const base = Array.isArray(prev[arrayName]) ? prev[arrayName] : [];
-      const newArray = [...base];
-      newArray.splice(index, 1);
-      return { ...prev, [arrayName]: newArray };
-    });
+    setFormData((prev) => ({
+      ...prev,
+      [arrayName]: prev[arrayName].filter((_, i) => i !== index)
+    }));
   };
 
   const openCreateModal = () => {
     setEditingId(null);
     setFormData(defaultForm);
     setIsModalOpen(true);
-    setActiveTab("content");
   };
 
   const openEditModal = (about) => {
-    setEditingId(about.id || about._id);
+    setEditingId(about.id);
     const formCopy = { ...about };
 
-    // Parse strings into arrays for the UI and ensure arrays for UI-controlled fields.
-    ["team", "work", "partners", "stats", "data"].forEach((field) => {
+    // Parse JSON strings
+    ["team", "work", "partners", "stats"].forEach((field) => {
       if (typeof formCopy[field] === "string") {
         try {
           formCopy[field] = JSON.parse(formCopy[field]);
@@ -95,79 +121,56 @@ export default function AboutUsPage() {
           formCopy[field] = [];
         }
       }
-      if (!formCopy[field]) {
-        formCopy[field] = [];
-      } else if (typeof formCopy[field] === "object" && !Array.isArray(formCopy[field])) {
-        if (field === "data") {
-          // convert a plain object into key/value array for 'data'
-          formCopy[field] = Object.entries(formCopy[field]).map(([k, v]) => ({ key: k, value: String(v) }));
-        } else {
-          // unexpected object shape for array fields: coerce to empty array
-          formCopy[field] = [];
-        }
-      }
+      formCopy[field] = formCopy[field] || [];
     });
 
-    setFormData({ ...defaultForm, ...formCopy });
+    setFormData(formCopy);
     setIsModalOpen(true);
-    setActiveTab("content");
   };
 
   const handleDelete = async (id) => {
-    if (confirm("Are you sure you want to delete this About Us version?")) {
-      try {
-        await fetch(`https://achal-backend-trial.tannis.in/api/about/${id}`, { method: "DELETE" });
-        loadData();
-      } catch (error) {
-        console.error("Failed to delete:", error);
-      }
+    if (!confirm("Delete this version?")) return;
+    
+    try {
+      await fetch(`${API_BASE}/api/about/${id}`, { method: "DELETE" });
+      loadAbouts();
+    } catch (error) {
+      console.error("Delete failed:", error);
     }
   };
 
-  const togglePublishStatus = async (about) => {
+  const togglePublish = async (about) => {
     try {
-      const id = about.id || about._id;
-      const res = await fetch(`https://achal-backend-trial.tannis.in/api/about/${id}/publish`, {
+      await fetch(`${API_BASE}/api/about/${about.id}/publish`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publish: !about.isPublished })
       });
-      if (res.ok) {
-        loadData();
-      } else {
-        alert("Failed to toggle publish status.");
-      }
+      loadAbouts();
     } catch (error) {
-      console.error("Failed to toggle status:", error);
+      console.error("Toggle failed:", error);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
     if (!formData.title) {
-      alert("Title is required.");
+      alert("Title is required");
       return;
     }
 
     const payload = { ...formData };
 
-    // Convert arrays back to JSON strings for backend
+    // Convert arrays to JSON strings
     ["team", "work", "partners", "stats"].forEach((field) => {
       payload[field] = JSON.stringify(payload[field] || []);
     });
 
-    // For 'data', convert key-value array into an object string, or just a JSON array depending on preference.
-    // Given the previous raw generic blocks, an object `{}` is usually preferred
-    if (Array.isArray(payload.data)) {
-      const dataObj = {};
-      payload.data.forEach(item => { if (item.key) dataObj[item.key] = item.value });
-      payload.data = JSON.stringify(dataObj);
-    } else {
-      payload.data = "{}";
-    }
-
     try {
-      const url = editingId
-        ? `https://achal-backend-trial.tannis.in/api/about/${editingId}`
-        : "https://achal-backend-trial.tannis.in/api/about";
+      const url = editingId 
+        ? `${API_BASE}/api/about/${editingId}` 
+        : `${API_BASE}/api/about`;
       const method = editingId ? "PUT" : "POST";
 
       const res = await fetch(url, {
@@ -176,17 +179,13 @@ export default function AboutUsPage() {
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        alert(errorData.message || "Failed to save.");
-        return;
-      }
+      if (!res.ok) throw new Error("Save failed");
 
-      loadData();
+      loadAbouts();
       setIsModalOpen(false);
     } catch (error) {
-      console.error("Error saving:", error);
-      alert("An error occurred while saving.");
+      console.error("Save error:", error);
+      alert("Failed to save");
     }
   };
 
@@ -195,116 +194,113 @@ export default function AboutUsPage() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto pb-10">
+    <div className="max-w-7xl mx-auto p-6">
+      {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">About Us Manager</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage multiple versions of your highly dynamic About Us page.</p>
+          <p className="text-sm text-gray-500 mt-1">Manage your About Us page content</p>
         </div>
         <button
           onClick={openCreateModal}
-          className="flex items-center space-x-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2.5 rounded-lg transition-colors shadow-sm font-medium"
+          className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors"
         >
           <Plus className="w-5 h-5" />
-          <span>Create Version</span>
+          <span>Create New</span>
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden min-h-[500px]">
-        {/* Toolbar */}
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
-          <div className="relative w-72">
+      {/* Search */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-gray-200 bg-gray-50">
+          <div className="relative max-w-md">
             <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               placeholder="Search by title..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none text-sm transition-all"
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none"
             />
           </div>
         </div>
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 text-gray-500 text-sm border-b border-gray-200">
-                <th className="px-6 py-4 font-medium">Page Title / Intro</th>
-                <th className="px-6 py-4 font-medium">Publish Status</th>
-                <th className="px-6 py-4 font-medium">Last Updated</th>
-                <th className="px-6 py-4 font-medium text-right">Actions</th>
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">Title</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">Status</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">Updated</th>
+                <th className="px-6 py-3 text-right text-sm font-medium text-gray-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredAbouts.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
-                    <div className="flex flex-col items-center">
-                      <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center mb-3">
-                        <Info className="w-6 h-6 text-orange-400" />
-                      </div>
-                      <p>No About Us pages found. Create your first version!</p>
-                    </div>
+                  <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
+                    No content found. Create your first version!
                   </td>
                 </tr>
               ) : (
-                filteredAbouts.map((about) => {
-                  return (
-                    <tr key={about.id || about._id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col max-w-[300px]">
-                          <p className="font-semibold text-gray-900 truncate">{about.title || "Untitled"}</p>
-                          <p className="text-xs text-gray-500 truncate mt-1">{about.intro || "No intro provided."}</p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
+                filteredAbouts.map((about) => (
+                  <tr key={about.id} className="hover:bg-gray-50 group">
+                    <td className="px-6 py-4">
+                      <div className="max-w-xs">
+                        <p className="font-semibold text-gray-900 truncate">{about.title || "Untitled"}</p>
+                        <p className="text-xs text-gray-500 truncate mt-1">{about.intro || "No intro"}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => togglePublish(about)}
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+                          about.isPublished 
+                            ? "bg-green-100 text-green-700" 
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {about.isPublished ? "PUBLISHED" : "DRAFT"}
+                      </button>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {about.updatedAt 
+                        ? new Date(about.updatedAt).toLocaleDateString() 
+                        : new Date(about.creationDate).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={() => togglePublishStatus(about)}
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold transition-colors hover:opacity-80 ${about.isPublished ? "bg-green-100 text-green-700 border border-green-200" : "bg-gray-100 text-gray-600 border border-gray-200"}`}
-                          title="Click to toggle publish status"
+                          onClick={() => openEditModal(about)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         >
-                          {about.isPublished ? "PUBLISHED" : "DRAFT"}
+                          <Edit2 className="w-4 h-4" />
                         </button>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {about.updatedAt ? new Date(about.updatedAt).toLocaleDateString() : (about.creationDate ? new Date(about.creationDate).toLocaleDateString() : "Unknown")}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => openEditModal(about)}
-                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Edit Page configuration"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(about.id || about._id)}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
+                        <button
+                          onClick={() => handleDelete(about.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Modal / Editor */}
+      {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <h2 className="text-xl font-semibold text-gray-800 flex items-center space-x-2">
-                <Info className="w-5 h-5 text-orange-500" />
-                <span>{editingId ? "Edit About Us Page" : "Configure About Us Page"}</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-gray-800">
+                {editingId ? "Edit About Us" : "Create About Us"}
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -314,262 +310,335 @@ export default function AboutUsPage() {
               </button>
             </div>
 
-            <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto">
-              <button
-                type="button"
-                className={`px-6 py-3 text-sm font-medium transition-colors flex items-center space-x-2 whitespace-nowrap ${activeTab === 'content' ? 'border-b-2 border-orange-500 text-orange-600 bg-orange-50/50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-                onClick={() => setActiveTab('content')}
-              >
-                <LayoutTemplate className="w-4 h-4" />
-                <span>Core Content</span>
-              </button>
-              <button
-                type="button"
-                className={`px-6 py-3 text-sm font-medium transition-colors flex items-center space-x-2 whitespace-nowrap ${activeTab === 'team' ? 'border-b-2 border-orange-500 text-orange-600 bg-orange-50/50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-                onClick={() => setActiveTab('team')}
-              >
-                <Users className="w-4 h-4" />
-                <span>Team Directory</span>
-              </button>
-              <button
-                type="button"
-                className={`px-6 py-3 text-sm font-medium transition-colors flex items-center space-x-2 whitespace-nowrap ${activeTab === 'work' ? 'border-b-2 border-orange-500 text-orange-600 bg-orange-50/50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-                onClick={() => setActiveTab('work')}
-              >
-                <Briefcase className="w-4 h-4" />
-                <span>Work / Projects</span>
-              </button>
-              <button
-                type="button"
-                className={`px-6 py-3 text-sm font-medium transition-colors flex items-center space-x-2 whitespace-nowrap ${activeTab === 'other' ? 'border-b-2 border-orange-500 text-orange-600 bg-orange-50/50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-                onClick={() => setActiveTab('other')}
-              >
-                <Settings className="w-4 h-4" />
-                <span>Partners & Stats</span>
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto flex-1 custom-scrollbar bg-gray-50/30">
-              <form id="about-form" onSubmit={handleSubmit} className="mx-auto max-w-4xl space-y-6">
-
-                {/* 1. CONTENT TAB */}
-                <div className={activeTab === 'content' ? 'block space-y-6' : 'hidden'}>
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto flex-1">
+              <form id="about-form" onSubmit={handleSubmit} className="space-y-6">
+                
+                {/* Basic Info */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-800 border-b pb-2">Basic Information</h3>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Page Title *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Title *
+                    </label>
                     <input
                       type="text"
                       name="title"
                       required
                       value={formData.title}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all font-semibold text-lg"
-                      placeholder="e.g. About Our Amazing Company"
+                      className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none"
+                      placeholder="About Our Company"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Introduction (Hero text)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Introduction
+                    </label>
                     <textarea
                       name="intro"
-                      rows="3"
+                      rows="2"
                       value={formData.intro}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all resize-none text-gray-700"
-                      placeholder="Welcome to our company..."
+                      className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none resize-none"
+                      placeholder="Welcome message..."
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Our Mission</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Mission
+                      </label>
                       <textarea
                         name="mission"
-                        rows="6"
+                        rows="4"
                         value={formData.mission}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
-                        placeholder="Mission statement..."
+                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none resize-none"
+                        placeholder="Our mission..."
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Our Vision</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Vision
+                      </label>
                       <textarea
                         name="vision"
-                        rows="6"
+                        rows="4"
                         value={formData.vision}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
-                        placeholder="Vision statement..."
+                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none resize-none"
+                        placeholder="Our vision..."
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* 2. TEAM TAB */}
-                <div className={activeTab === 'team' ? 'block' : 'hidden'}>
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">Team Members</h3>
-                    <button type="button" onClick={() => addArrayItem('team', { name: '', role: '', bio: '', photo: '' })} className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 rounded-md font-medium flex items-center transition-colors">
-                      <Plus className="w-4 h-4 mr-1" /> Add Member
+                {/* Team Section */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center border-b pb-2">
+                    <h3 className="font-semibold text-gray-800">Team Members</h3>
+                    <button
+                      type="button"
+                      onClick={() => addArrayItem('team', { name: '', role: '', bio: '', photo: '' })}
+                      className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1 rounded-lg flex items-center gap-1"
+                    >
+                      <Plus className="w-4 h-4" /> Add Member
                     </button>
                   </div>
 
-                  {(!Array.isArray(formData.team) || formData.team.length === 0) && <p className="text-gray-500 text-center py-8 bg-white rounded-xl border border-dashed border-gray-300">No team members added yet.</p>}
-
-                  <div className="space-y-4">
-                    {(Array.isArray(formData.team) ? formData.team : []).map((member, index) => (
-                      <div key={index} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative group">
-                        <button type="button" onClick={() => removeArrayItem('team', index)} className="absolute top-3 right-3 text-red-400 hover:text-red-600 p-1 bg-red-50 rounded-md transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mr-8">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
-                            <input type="text" value={member.name} onChange={(e) => handleArrayChange('team', index, 'name', e.target.value)} className="w-full px-3 py-1.5 rounded-md border border-gray-300 text-sm focus:border-orange-500 outline-none" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Role / Position</label>
-                            <input type="text" value={member.role} onChange={(e) => handleArrayChange('team', index, 'role', e.target.value)} className="w-full px-3 py-1.5 rounded-md border border-gray-300 text-sm focus:border-orange-500 outline-none" />
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Photo URL</label>
-                            <input type="text" value={member.photo} onChange={(e) => handleArrayChange('team', index, 'photo', e.target.value)} className="w-full px-3 py-1.5 rounded-md border border-gray-300 text-sm focus:border-orange-500 outline-none" placeholder="https://" />
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Bio</label>
-                            <textarea rows="2" value={member.bio} onChange={(e) => handleArrayChange('team', index, 'bio', e.target.value)} className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:border-orange-500 outline-none resize-none" />
-                          </div>
-                        </div>
+                  {formData.team?.map((member, index) => (
+                    <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200 relative">
+                      <button
+                        type="button"
+                        onClick={() => removeArrayItem('team', index)}
+                        className="absolute top-2 right-2 text-red-500 hover:bg-red-50 p-1 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                        <input
+                          type="text"
+                          placeholder="Name"
+                          value={member.name}
+                          onChange={(e) => handleArrayChange('team', index, 'name', e.target.value)}
+                          className="px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Role"
+                          value={member.role}
+                          onChange={(e) => handleArrayChange('team', index, 'role', e.target.value)}
+                          className="px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none"
+                        />
                       </div>
-                    ))}
-                  </div>
+                      
+                      <textarea
+                        placeholder="Bio"
+                        rows="2"
+                        value={member.bio}
+                        onChange={(e) => handleArrayChange('team', index, 'bio', e.target.value)}
+                        className="w-full px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none resize-none mb-3"
+                      />
+                      
+                      {/* Image Upload */}
+                      <div className="flex items-center gap-3">
+                        <label className="flex-1 cursor-pointer">
+                          <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors">
+                            <Upload className="w-4 h-4 text-gray-500" />
+                            <span className="text-sm text-gray-600">Upload Photo</span>
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleImageUpload(e, 'team', index, 'photo')}
+                            className="hidden"
+                          />
+                        </label>
+                        {member.photo && (
+                          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-orange-500">
+                            <img src={member.photo} alt="Preview" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                {/* 3. WORK / PROJECTS TAB */}
-                <div className={activeTab === 'work' ? 'block' : 'hidden'}>
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">Featured Work & Projects</h3>
-                    <button type="button" onClick={() => addArrayItem('work', { title: '', description: '', image: '', link: '' })} className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 rounded-md font-medium flex items-center transition-colors">
-                      <Plus className="w-4 h-4 mr-1" /> Add Project
+                {/* Work/Projects Section */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center border-b pb-2">
+                    <h3 className="font-semibold text-gray-800">Projects</h3>
+                    <button
+                      type="button"
+                      onClick={() => addArrayItem('work', { title: '', description: '', image: '', link: '' })}
+                      className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1 rounded-lg flex items-center gap-1"
+                    >
+                      <Plus className="w-4 h-4" /> Add Project
                     </button>
                   </div>
 
-                  {(!Array.isArray(formData.work) || formData.work.length === 0) && <p className="text-gray-500 text-center py-8 bg-white rounded-xl border border-dashed border-gray-300">No projects added yet.</p>}
+                  {formData.work?.map((project, index) => (
+                    <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200 relative">
+                      <button
+                        type="button"
+                        onClick={() => removeArrayItem('work', index)}
+                        className="absolute top-2 right-2 text-red-500 hover:bg-red-50 p-1 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      
+                      <input
+                        type="text"
+                        placeholder="Project Title"
+                        value={project.title}
+                        onChange={(e) => handleArrayChange('work', index, 'title', e.target.value)}
+                        className="w-full px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none mb-3"
+                      />
+                      
+                      <textarea
+                        placeholder="Description"
+                        rows="2"
+                        value={project.description}
+                        onChange={(e) => handleArrayChange('work', index, 'description', e.target.value)}
+                        className="w-full px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none resize-none mb-3"
+                      />
+                      
+                      <input
+                        type="url"
+                        placeholder="Project Link (https://...)"
+                        value={project.link}
+                        onChange={(e) => handleArrayChange('work', index, 'link', e.target.value)}
+                        className="w-full px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none mb-3"
+                      />
+                      
+                      {/* Image Upload */}
+                      <div className="flex items-center gap-3">
+                        <label className="flex-1 cursor-pointer">
+                          <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors">
+                            <Upload className="w-4 h-4 text-gray-500" />
+                            <span className="text-sm text-gray-600">Upload Image</span>
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleImageUpload(e, 'work', index, 'image')}
+                            className="hidden"
+                          />
+                        </label>
+                        {project.image && (
+                          <div className="w-16 h-16 rounded overflow-hidden border-2 border-orange-500">
+                            <img src={project.image} alt="Preview" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-                  <div className="space-y-4">
-                    {(Array.isArray(formData.work) ? formData.work : []).map((project, index) => (
-                      <div key={index} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative group">
-                        <button type="button" onClick={() => removeArrayItem('work', index)} className="absolute top-3 right-3 text-red-400 hover:text-red-600 p-1 bg-red-50 rounded-md transition-colors">
-                          <Trash2 className="w-4 h-4" />
+                {/* Stats & Partners */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* Stats */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center border-b pb-2">
+                      <h3 className="font-semibold text-gray-800">Statistics</h3>
+                      <button
+                        type="button"
+                        onClick={() => addArrayItem('stats', { label: '', value: '' })}
+                        className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded"
+                      >
+                        + Add
+                      </button>
+                    </div>
+                    {formData.stats?.map((stat, index) => (
+                      <div key={index} className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="100+"
+                          value={stat.value}
+                          onChange={(e) => handleArrayChange('stats', index, 'value', e.target.value)}
+                          className="w-24 px-2 py-1 rounded border border-gray-300 focus:border-orange-500 outline-none text-sm font-bold"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Label"
+                          value={stat.label}
+                          onChange={(e) => handleArrayChange('stats', index, 'label', e.target.value)}
+                          className="flex-1 px-2 py-1 rounded border border-gray-300 focus:border-orange-500 outline-none text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeArrayItem('stats', index)}
+                          className="text-red-500 hover:bg-red-50 p-1 rounded"
+                        >
+                          <X className="w-4 h-4" />
                         </button>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mr-8">
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Project Title</label>
-                            <input type="text" value={project.title} onChange={(e) => handleArrayChange('work', index, 'title', e.target.value)} className="w-full px-3 py-1.5 rounded-md border border-gray-300 text-sm focus:border-orange-500 outline-none" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Image URL</label>
-                            <input type="text" value={project.image} onChange={(e) => handleArrayChange('work', index, 'image', e.target.value)} className="w-full px-3 py-1.5 rounded-md border border-gray-300 text-sm focus:border-orange-500 outline-none" placeholder="https://" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">External Link</label>
-                            <input type="text" value={project.link} onChange={(e) => handleArrayChange('work', index, 'link', e.target.value)} className="w-full px-3 py-1.5 rounded-md border border-gray-300 text-sm focus:border-orange-500 outline-none" placeholder="https://" />
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
-                            <textarea rows="2" value={project.description} onChange={(e) => handleArrayChange('work', index, 'description', e.target.value)} className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:border-orange-500 outline-none resize-none" />
-                          </div>
-                        </div>
                       </div>
                     ))}
                   </div>
-                </div>
 
-                {/* 4. OTHER LISTS TAB */}
-                <div className={activeTab === 'other' ? 'block' : 'hidden'}>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-                    {/* Partners */}
-                    <div>
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="font-semibold text-gray-800 flex items-center"><Handshake className="w-4 h-4 mr-2 text-gray-500" /> Partners</h3>
-                        <button type="button" onClick={() => addArrayItem('partners', { name: '', logo: '' })} className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded transition-colors">+ Add</button>
-                      </div>
-                      <div className="space-y-3">
-                        {(Array.isArray(formData.partners) ? formData.partners : []).map((partner, index) => (
-                          <div key={index} className="bg-white p-3 rounded-lg border border-gray-200 flex space-x-2">
-                            <div className="flex-1 space-y-2">
-                              <input type="text" placeholder="Partner Name" value={partner.name || ''} onChange={(e) => handleArrayChange('partners', index, 'name', e.target.value)} className="w-full px-2 py-1 text-sm border-b border-dashed border-gray-300 outline-none focus:border-orange-500" />
-                              <input type="text" placeholder="Logo Image URL" value={partner.logo || ''} onChange={(e) => handleArrayChange('partners', index, 'logo', e.target.value)} className="w-full px-2 py-1 text-xs border-b border-dashed border-gray-300 outline-none focus:border-orange-500" />
+                  {/* Partners */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center border-b pb-2">
+                      <h3 className="font-semibold text-gray-800">Partners</h3>
+                      <button
+                        type="button"
+                        onClick={() => addArrayItem('partners', { name: '', logo: '' })}
+                        className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded"
+                      >
+                        + Add
+                      </button>
+                    </div>
+                    {formData.partners?.map((partner, index) => (
+                      <div key={index} className="space-y-2 p-2 bg-white rounded border border-gray-200">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Partner Name"
+                            value={partner.name}
+                            onChange={(e) => handleArrayChange('partners', index, 'name', e.target.value)}
+                            className="flex-1 px-2 py-1 rounded border border-gray-300 focus:border-orange-500 outline-none text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeArrayItem('partners', index)}
+                            className="text-red-500 hover:bg-red-50 p-1 rounded"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="flex-1 cursor-pointer">
+                            <div className="flex items-center gap-2 px-2 py-1 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100 transition-colors">
+                              <ImageIcon className="w-3 h-3 text-gray-500" />
+                              <span className="text-xs text-gray-600">Logo</span>
                             </div>
-                            <button type="button" onClick={() => removeArrayItem('partners', index)} className="text-red-400 hover:text-red-600 px-2"><X className="w-4 h-4" /></button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Stats */}
-                    <div>
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="font-semibold text-gray-800 flex items-center"><BarChart className="w-4 h-4 mr-2 text-gray-500" /> Statistics</h3>
-                        <button type="button" onClick={() => addArrayItem('stats', { label: '', value: '' })} className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded transition-colors">+ Add</button>
-                      </div>
-                      <div className="space-y-3">
-                        {(Array.isArray(formData.stats) ? formData.stats : []).map((stat, index) => (
-                          <div key={index} className="bg-white p-3 rounded-lg border border-gray-200 flex space-x-2">
-                            <div className="flex-1 flex space-x-2">
-                              <input type="text" placeholder="100+" value={stat.value || ''} onChange={(e) => handleArrayChange('stats', index, 'value', e.target.value)} className="w-1/3 px-2 py-1 text-sm font-bold border-b border-dashed border-gray-300 outline-none focus:border-orange-500" />
-                              <input type="text" placeholder="Happy Clients" value={stat.label || ''} onChange={(e) => handleArrayChange('stats', index, 'label', e.target.value)} className="w-2/3 px-2 py-1 text-sm border-b border-dashed border-gray-300 outline-none focus:border-orange-500" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleImageUpload(e, 'partners', index, 'logo')}
+                              className="hidden"
+                            />
+                          </label>
+                          {partner.logo && (
+                            <div className="w-8 h-8 rounded overflow-hidden border border-gray-300">
+                              <img src={partner.logo} alt="Logo" className="w-full h-full object-contain" />
                             </div>
-                            <button type="button" onClick={() => removeArrayItem('stats', index)} className="text-red-400 hover:text-red-600 px-1"><X className="w-4 h-4" /></button>
-                          </div>
-                        ))}
+                          )}
+                        </div>
                       </div>
-                    </div>
-
-                    {/* Generic Data Table */}
-                    <div className="lg:col-span-2 mt-4 pt-6 border-t border-gray-200">
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="font-semibold text-gray-800 flex items-center"><Database className="w-4 h-4 mr-2 text-gray-500" /> Additional Key-Value Data</h3>
-                        <button type="button" onClick={() => addArrayItem('data', { key: '', value: '' })} className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded transition-colors">+ Add Custom Field</button>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {(Array.isArray(formData.data) ? formData.data : []).map((item, index) => (
-                          <div key={index} className="bg-white p-2 rounded-lg border border-gray-200 flex items-center space-x-2">
-                            <input type="text" placeholder="e.g. establishedYear" value={item.key || ''} onChange={(e) => handleArrayChange('data', index, 'key', e.target.value)} className="w-1/3 px-2 py-1 text-xs font-mono bg-gray-50 border border-gray-200 rounded outline-none focus:border-orange-500" />
-                            <input type="text" placeholder="Value" value={item.value || ''} onChange={(e) => handleArrayChange('data', index, 'value', e.target.value)} className="flex-1 px-2 py-1 text-sm border-b border-dashed border-gray-300 outline-none focus:border-orange-500" />
-                            <button type="button" onClick={() => removeArrayItem('data', index)} className="text-red-400 hover:text-red-600 px-1"><X className="w-4 h-4" /></button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
+                    ))}
                   </div>
                 </div>
 
               </form>
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <div className="flex items-center space-x-3 text-sm text-gray-500">
-                <span className={`w-3 h-3 rounded-full ${formData.isPublished ? 'bg-green-500' : 'bg-gray-300'}`}></span>
-                <span>{formData.isPublished ? "Currently Published" : "Currently Draft"}</span>
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center bg-gray-50">
+              <div className="text-sm text-gray-500">
+                {formData.isPublished ? "Published" : "Draft"}
               </div>
-              <div className="flex space-x-3">
+              <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 font-medium transition-colors"
+                  className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   form="about-form"
-                  className="px-6 py-2.5 rounded-lg bg-orange-600 text-white hover:bg-orange-700 font-medium transition-colors flex items-center space-x-2 shadow-sm"
+                  className="px-6 py-2 rounded-lg bg-orange-600 text-white hover:bg-orange-700 transition-colors flex items-center gap-2"
                 >
                   <Check className="w-4 h-4" />
-                  <span>{editingId ? "Save Version" : "Create Version"}</span>
+                  <span>{editingId ? "Update" : "Create"}</span>
                 </button>
               </div>
             </div>
