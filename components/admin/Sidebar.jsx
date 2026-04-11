@@ -85,13 +85,29 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-[#1e2336] text-gray-300 flex flex-col min-h-screen sticky top-0 left-0">
+    <aside className="w-64 bg-[#1e2336] text-gray-300 flex flex-col sticky top-0 h-screen">
       <div className="p-6 flex items-center space-x-3">
        
         <span className="text-white text-xl font-bold tracking-wide">Achal</span>
       </div>
 
-      <div className="mt-4 px-4 pb-20 overflow-y-auto">
+      <div className="mt-4 px-4 pb-6 flex-1 overflow-y-auto sidebar-scroll">
+        <style>{`
+          .sidebar-scroll::-webkit-scrollbar {
+            width: 10px;
+          }
+          .sidebar-scroll::-webkit-scrollbar-track {
+            background: rgba(30, 35, 54, 0.8);
+            border-radius: 4px;
+          }
+          .sidebar-scroll::-webkit-scrollbar-thumb {
+            background: rgba(100, 120, 160, 0.8);
+            border-radius: 4px;
+          }
+          .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(150, 170, 210, 1);
+          }
+        `}</style>
         <p className="text-xs font-semibold text-gray-500 mb-4 px-2 tracking-wider">GENERAL</p>
         <ul className="space-y-1">
           {sidebarItems.map((item, index) => {
