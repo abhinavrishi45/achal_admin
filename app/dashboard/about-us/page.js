@@ -119,14 +119,17 @@ export default function AboutUsAdmin() {
     ["team", "work", "partners", "stats"].forEach((field) => {
       if (typeof formCopy[field] === "string") {
         try {
-          formCopy[field] = JSON.parse(formCopy[field]);
-        } catch {
+          const parsed = JSON.parse(formCopy[field]);
+          formCopy[field] = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.warn(`Failed to parse ${field}:`, formCopy[field], e);
           formCopy[field] = [];
         }
       }
-      formCopy[field] = formCopy[field] || [];
+      formCopy[field] = Array.isArray(formCopy[field]) ? formCopy[field] : [];
     });
 
+    console.log("Loaded form data:", formCopy);
     setFormData(formCopy);
     setIsModalOpen(true);
   };
@@ -170,10 +173,29 @@ export default function AboutUsAdmin() {
 
     const payload = { ...formData };
 
-    // Convert arrays to JSON strings
+    // Convert arrays to JSON strings and filter out empty items
     ["team", "work", "partners", "stats"].forEach((field) => {
-      payload[field] = JSON.stringify(payload[field] || []);
+      let arrayData = payload[field] || [];
+      
+      // For partners and stats, filter out empty items
+      if (field === "partners") {
+        arrayData = arrayData.filter(item => item.name && item.name.trim());
+        console.log("Filtered partners:", arrayData);
+      }
+      if (field === "stats") {
+        arrayData = arrayData.filter(item => item.value && item.value.trim());
+      }
+      if (field === "team") {
+        arrayData = arrayData.filter(item => item.name && item.name.trim());
+      }
+      if (field === "work") {
+        arrayData = arrayData.filter(item => item.title && item.title.trim());
+      }
+      
+      payload[field] = JSON.stringify(arrayData);
     });
+
+    console.log("Final payload:", payload);
 
     try {
       const url = editingId
@@ -181,7 +203,7 @@ export default function AboutUsAdmin() {
         : `${API_BASE}/api/about`;
       const method = editingId ? "PUT" : "POST";
 
-      console.log("Saving to:", url, "Method:", method, "Payload:", payload);
+      console.log("Saving to:", url, "Method:", method);
 
       const res = await fetch(url, {
         method,
@@ -414,7 +436,14 @@ export default function AboutUsAdmin() {
                 {/* Team Section */}
                 <div className="space-y-4">
                   <div className="flex justify-between items-center border-b pb-2">
-                    <h3 className="font-semibold text-gray-800">Team Members</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-800">Team Members</h3>
+                      {formData.team?.length > 0 && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+                          {formData.team.length}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex gap-2 items-center">
                       <button
                         type="button"
@@ -497,7 +526,14 @@ export default function AboutUsAdmin() {
                 {/* Work/Projects Section */}
                 <div className="space-y-4">
                   <div className="flex justify-between items-center border-b pb-2">
-                    <h3 className="font-semibold text-gray-800">Projects</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-800">Projects</h3>
+                      {formData.work?.length > 0 && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+                          {formData.work.length}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex gap-2 items-center">
                       <button
                         type="button"
@@ -583,13 +619,24 @@ export default function AboutUsAdmin() {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center border-b pb-2">
                       <h3 className="font-semibold text-gray-800">Statistics</h3>
-                      <button
-                        type="button"
-                        onClick={() => addArrayItem('stats', { label: '', value: '' })}
-                        className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded"
-                      >
-                        + Add
-                      </button>
+                      <div className="flex gap-1 items-center">
+                        <button
+                          type="button"
+                          onClick={() => addArrayItem('stats', { label: '', value: '' })}
+                          className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded"
+                        >
+                          + Add
+                        </button>
+                        <button
+                          type="submit"
+                          form="about-form"
+                          disabled={isSaving}
+                          title="Save current progress"
+                          className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-0.5 rounded flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <Check className="w-3 h-3" /> Save
+                        </button>
+                      </div>
                     </div>
                     {formData.stats?.map((stat, index) => (
                       <div key={index} className="flex gap-2">
@@ -621,7 +668,14 @@ export default function AboutUsAdmin() {
                   {/* Partners */}
                   <div className="space-y-3">
                     <div className="flex justify-between items-center border-b pb-2">
-                      <h3 className="font-semibold text-gray-800">Partners</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-gray-800">Partners</h3>
+                        {formData.partners?.length > 0 && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+                            {formData.partners.length}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex gap-1 items-center">
                         <button
                           type="button"
@@ -641,20 +695,26 @@ export default function AboutUsAdmin() {
                         </button>
                       </div>
                     </div>
+                    
+                    {formData.partners && formData.partners.length === 0 && (
+                      <div className="text-xs text-gray-500 italic py-2">No partners added yet.</div>
+                    )}
+                    
                     {formData.partners?.map((partner, index) => (
                       <div key={index} className="space-y-2 p-2 bg-white rounded border border-gray-200">
                         <div className="flex gap-2">
                           <input
                             type="text"
-                            placeholder="Partner Name"
-                            value={partner.name}
+                            placeholder="Partner Name *"
+                            value={partner.name || ''}
                             onChange={(e) => handleArrayChange('partners', index, 'name', e.target.value)}
-                            className="flex-1 px-2 py-1 rounded border border-gray-300 focus:border-orange-500 outline-none text-sm"
+                            className={`flex-1 px-2 py-1 rounded border ${!partner.name ? 'border-red-300 bg-red-50' : 'border-gray-300'} focus:border-orange-500 outline-none text-sm`}
                           />
                           <button
                             type="button"
                             onClick={() => removeArrayItem('partners', index)}
                             className="text-red-500 hover:bg-red-50 p-1 rounded"
+                            title="Delete this partner"
                           >
                             <X className="w-4 h-4" />
                           </button>
