@@ -10,7 +10,10 @@ export default function AboutUsAdmin() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null); // 'success', 'error', null
+  const [saveMessage, setSaveMessage] = useState("");
+
   const defaultForm = {
     title: "",
     intro: "",
@@ -130,7 +133,7 @@ export default function AboutUsAdmin() {
 
   const handleDelete = async (id) => {
     if (!confirm("Delete this version?")) return;
-    
+
     try {
       await fetch(`${API_BASE}/api/about/${id}`, { method: "DELETE" });
       loadAbouts();
@@ -154,11 +157,16 @@ export default function AboutUsAdmin() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!formData.title) {
-      alert("Title is required");
+
+    if (!formData.title.trim()) {
+      setSaveStatus('error');
+      setSaveMessage("Title is required");
+      setTimeout(() => setSaveStatus(null), 3000);
       return;
     }
+
+    setIsSaving(true);
+    setSaveStatus(null);
 
     const payload = { ...formData };
 
@@ -168,10 +176,12 @@ export default function AboutUsAdmin() {
     });
 
     try {
-      const url = editingId 
-        ? `${API_BASE}/api/about/${editingId}` 
+      const url = editingId
+        ? `${API_BASE}/api/about/${editingId}`
         : `${API_BASE}/api/about`;
       const method = editingId ? "PUT" : "POST";
+
+      console.log("Saving to:", url, "Method:", method, "Payload:", payload);
 
       const res = await fetch(url, {
         method,
@@ -179,13 +189,28 @@ export default function AboutUsAdmin() {
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error("Save failed");
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Save failed: ${res.status} - ${errorText}`);
+      }
 
-      loadAbouts();
-      setIsModalOpen(false);
+      setSaveStatus('success');
+      setSaveMessage(editingId ? "Updated successfully!" : "Created successfully!");
+
+      await loadAbouts();
+
+      setTimeout(() => {
+        setIsModalOpen(false);
+        setSaveStatus(null);
+      }, 1500);
+
     } catch (error) {
       console.error("Save error:", error);
-      alert("Failed to save");
+      setSaveStatus('error');
+      setSaveMessage(error.message || "Failed to save. Please try again.");
+      setTimeout(() => setSaveStatus(null), 4000);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -255,18 +280,17 @@ export default function AboutUsAdmin() {
                     <td className="px-6 py-4">
                       <button
                         onClick={() => togglePublish(about)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
-                          about.isPublished 
-                            ? "bg-green-100 text-green-700" 
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${about.isPublished
+                            ? "bg-green-100 text-green-700"
                             : "bg-gray-100 text-gray-600"
-                        }`}
+                          }`}
                       >
                         {about.isPublished ? "PUBLISHED" : "DRAFT"}
                       </button>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {about.updatedAt 
-                        ? new Date(about.updatedAt).toLocaleDateString() 
+                      {about.updatedAt
+                        ? new Date(about.updatedAt).toLocaleDateString()
                         : new Date(about.creationDate).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -310,14 +334,24 @@ export default function AboutUsAdmin() {
               </button>
             </div>
 
+            {/* Status Message */}
+            {saveStatus && (
+              <div className={`px-6 py-3 border-b text-sm font-medium transition-all ${saveStatus === 'success'
+                  ? 'bg-green-50 border-green-200 text-green-700'
+                  : 'bg-red-50 border-red-200 text-red-700'
+                }`}>
+                {saveMessage}
+              </div>
+            )}
+
             {/* Modal Content */}
             <div className="p-6 overflow-y-auto flex-1">
               <form id="about-form" onSubmit={handleSubmit} className="space-y-6">
-                
+
                 {/* Basic Info */}
                 <div className="space-y-4">
                   <h3 className="font-semibold text-gray-800 border-b pb-2">Basic Information</h3>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Title *
@@ -381,13 +415,24 @@ export default function AboutUsAdmin() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center border-b pb-2">
                     <h3 className="font-semibold text-gray-800">Team Members</h3>
-                    <button
-                      type="button"
-                      onClick={() => addArrayItem('team', { name: '', role: '', bio: '', photo: '' })}
-                      className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1 rounded-lg flex items-center gap-1"
-                    >
-                      <Plus className="w-4 h-4" /> Add Member
-                    </button>
+                    <div className="flex gap-2 items-center">
+                      <button
+                        type="button"
+                        onClick={() => addArrayItem('team', { name: '', role: '', bio: '', photo: '' })}
+                        className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1 rounded-lg flex items-center gap-1"
+                      >
+                        <Plus className="w-4 h-4" /> Add Member
+                      </button>
+                      <button
+                        type="submit"
+                        form="about-form"
+                        disabled={isSaving}
+                        title="Save current progress"
+                        className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50"
+                      >
+                        <Check className="w-3 h-3" /> Save
+                      </button>
+                    </div>
                   </div>
 
                   {formData.team?.map((member, index) => (
@@ -399,7 +444,7 @@ export default function AboutUsAdmin() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                         <input
                           type="text"
@@ -416,7 +461,7 @@ export default function AboutUsAdmin() {
                           className="px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none"
                         />
                       </div>
-                      
+
                       <textarea
                         placeholder="Bio"
                         rows="2"
@@ -424,7 +469,7 @@ export default function AboutUsAdmin() {
                         onChange={(e) => handleArrayChange('team', index, 'bio', e.target.value)}
                         className="w-full px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none resize-none mb-3"
                       />
-                      
+
                       {/* Image Upload */}
                       <div className="flex items-center gap-3">
                         <label className="flex-1 cursor-pointer">
@@ -453,13 +498,24 @@ export default function AboutUsAdmin() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center border-b pb-2">
                     <h3 className="font-semibold text-gray-800">Projects</h3>
-                    <button
-                      type="button"
-                      onClick={() => addArrayItem('work', { title: '', description: '', image: '', link: '' })}
-                      className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1 rounded-lg flex items-center gap-1"
-                    >
-                      <Plus className="w-4 h-4" /> Add Project
-                    </button>
+                    <div className="flex gap-2 items-center">
+                      <button
+                        type="button"
+                        onClick={() => addArrayItem('work', { title: '', description: '', image: '', link: '' })}
+                        className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1 rounded-lg flex items-center gap-1"
+                      >
+                        <Plus className="w-4 h-4" /> Add Project
+                      </button>
+                      <button
+                        type="submit"
+                        form="about-form"
+                        disabled={isSaving}
+                        title="Save current progress"
+                        className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50"
+                      >
+                        <Check className="w-3 h-3" /> Save
+                      </button>
+                    </div>
                   </div>
 
                   {formData.work?.map((project, index) => (
@@ -471,7 +527,7 @@ export default function AboutUsAdmin() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      
+
                       <input
                         type="text"
                         placeholder="Project Title"
@@ -479,7 +535,7 @@ export default function AboutUsAdmin() {
                         onChange={(e) => handleArrayChange('work', index, 'title', e.target.value)}
                         className="w-full px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none mb-3"
                       />
-                      
+
                       <textarea
                         placeholder="Description"
                         rows="2"
@@ -487,7 +543,7 @@ export default function AboutUsAdmin() {
                         onChange={(e) => handleArrayChange('work', index, 'description', e.target.value)}
                         className="w-full px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none resize-none mb-3"
                       />
-                      
+
                       <input
                         type="url"
                         placeholder="Project Link (https://...)"
@@ -495,7 +551,7 @@ export default function AboutUsAdmin() {
                         onChange={(e) => handleArrayChange('work', index, 'link', e.target.value)}
                         className="w-full px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none mb-3"
                       />
-                      
+
                       {/* Image Upload */}
                       <div className="flex items-center gap-3">
                         <label className="flex-1 cursor-pointer">
@@ -522,7 +578,7 @@ export default function AboutUsAdmin() {
 
                 {/* Stats & Partners */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  
+
                   {/* Stats */}
                   <div className="space-y-3">
                     <div className="flex justify-between items-center border-b pb-2">
@@ -566,13 +622,24 @@ export default function AboutUsAdmin() {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center border-b pb-2">
                       <h3 className="font-semibold text-gray-800">Partners</h3>
-                      <button
-                        type="button"
-                        onClick={() => addArrayItem('partners', { name: '', logo: '' })}
-                        className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded"
-                      >
-                        + Add
-                      </button>
+                      <div className="flex gap-1 items-center">
+                        <button
+                          type="button"
+                          onClick={() => addArrayItem('partners', { name: '', logo: '' })}
+                          className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded"
+                        >
+                          + Add
+                        </button>
+                        <button
+                          type="submit"
+                          form="about-form"
+                          disabled={isSaving}
+                          title="Save current progress"
+                          className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-0.5 rounded flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <Check className="w-3 h-3" /> Save
+                        </button>
+                      </div>
                     </div>
                     {formData.partners?.map((partner, index) => (
                       <div key={index} className="space-y-2 p-2 bg-white rounded border border-gray-200">
@@ -628,17 +695,28 @@ export default function AboutUsAdmin() {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+                  disabled={isSaving}
+                  className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   form="about-form"
-                  className="px-6 py-2 rounded-lg bg-orange-600 text-white hover:bg-orange-700 transition-colors flex items-center gap-2"
+                  disabled={isSaving}
+                  className="px-6 py-2 rounded-lg bg-orange-600 text-white hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  <Check className="w-4 h-4" />
-                  <span>{editingId ? "Update" : "Create"}</span>
+                  {isSaving ? (
+                    <>
+                      <span className="inline-block animate-spin">⟳</span>
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>{editingId ? "Update" : "Create"}</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
