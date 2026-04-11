@@ -114,20 +114,55 @@ export default function AboutUsAdmin() {
   const openEditModal = (about) => {
     setEditingId(about.id);
     const formCopy = { ...about };
-
-    // Parse JSON strings
-    ["team", "work", "partners", "stats"].forEach((field) => {
-      if (typeof formCopy[field] === "string") {
+    // Robust parsing: accept arrays, JSON strings, objects (maps), or primitive lists.
+    const parseToArray = (value, field) => {
+      if (Array.isArray(value)) return value;
+      if (value === null || value === undefined) return [];
+      if (typeof value === 'string') {
+        if (value.trim() === '') return [];
         try {
-          const parsed = JSON.parse(formCopy[field]);
-          formCopy[field] = Array.isArray(parsed) ? parsed : [];
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed)) return parsed;
+          if (parsed && typeof parsed === 'object') {
+            if (field === 'stats') {
+              return Object.keys(parsed).map(k => ({ label: k, value: parsed[k] }));
+            }
+            const vals = Object.values(parsed);
+            return vals.length ? vals : [];
+          }
+          // fallback: comma-separated string
+          return value.split ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
         } catch (e) {
-          console.warn(`Failed to parse ${field}:`, formCopy[field], e);
-          formCopy[field] = [];
+          return value.split ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
         }
       }
-      formCopy[field] = Array.isArray(formCopy[field]) ? formCopy[field] : [];
+      if (typeof value === 'object') {
+        if (field === 'stats') {
+          return Object.keys(value).map(k => ({ label: k, value: value[k] }));
+        }
+        const vals = Object.values(value);
+        return vals.length ? vals : [value];
+      }
+      return [];
+    };
+
+    ['team', 'work', 'partners', 'stats'].forEach((field) => {
+      formCopy[field] = parseToArray(formCopy[field], field);
     });
+
+    // Normalize simple primitives into objects expected by the form
+    if (Array.isArray(formCopy.stats)) {
+      formCopy.stats = formCopy.stats.map(s => (s && typeof s === 'object' ? s : { label: '', value: s }));
+    }
+    if (Array.isArray(formCopy.team)) {
+      formCopy.team = formCopy.team.map(t => (t && typeof t === 'object' ? t : { name: String(t || ''), role: '', bio: '', photo: '' }));
+    }
+    if (Array.isArray(formCopy.work)) {
+      formCopy.work = formCopy.work.map(w => (w && typeof w === 'object' ? w : { title: String(w || ''), description: '', image: '', link: '' }));
+    }
+    if (Array.isArray(formCopy.partners)) {
+      formCopy.partners = formCopy.partners.map(p => (p && typeof p === 'object' ? p : { name: String(p || ''), logo: '' }));
+    }
 
     console.log("Loaded form data:", formCopy);
     setFormData(formCopy);
@@ -173,24 +208,28 @@ export default function AboutUsAdmin() {
 
     const payload = { ...formData };
 
-    // Convert arrays to JSON strings and filter out empty items
+    // Convert arrays to JSON strings and filter out empty items (safe checks)
     ["team", "work", "partners", "stats"].forEach((field) => {
       let arrayData = payload[field] || [];
 
-      // For partners and stats, filter out empty items
-      if (field === "partners") {
-        arrayData = arrayData.filter(item => item.name && item.name.trim());
-        console.log("Filtered partners:", arrayData);
+      // Ensure arrayData is an array (could be a JSON string)
+      if (!Array.isArray(arrayData)) {
+        try {
+          arrayData = JSON.parse(arrayData);
+        } catch (e) {
+          arrayData = [];
+        }
       }
-      if (field === "stats") {
-        arrayData = arrayData.filter(item => item.value && item.value.trim());
-      }
-      if (field === "team") {
-        arrayData = arrayData.filter(item => item.name && item.name.trim());
-      }
-      if (field === "work") {
-        arrayData = arrayData.filter(item => item.title && item.title.trim());
-      }
+      arrayData = Array.isArray(arrayData) ? arrayData : [];
+
+      arrayData = arrayData.filter((item) => {
+        if (!item) return false;
+        if (field === "partners") return String(item.name || '').trim() !== '';
+        if (field === "stats") return (item.value !== undefined && item.value !== null && String(item.value).trim() !== '');
+        if (field === "team") return String(item.name || '').trim() !== '';
+        if (field === "work") return String(item.title || '').trim() !== '';
+        return true;
+      });
 
       payload[field] = JSON.stringify(arrayData);
     });
