@@ -74,7 +74,7 @@ export default function Sidebar() {
     { name: "Applicants", href: "/dashboard/applicants", icon: Users },
     { name: "Blog", href: "/dashboard/blog", icon: PenTool },
     { name: "Quotes", href: "/dashboard/quotes", icon: FileText },
-    {name: "FAQs", href: "/dashboard/faq", icon: Info },
+    { name: "FAQs", href: "/dashboard/faq", icon: Info },
   ];
 
   const toggleDropdown = (name) => {
@@ -87,7 +87,7 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-[#1e2336] text-gray-300 flex flex-col sticky top-0 h-screen">
       <div className="p-6 flex items-center space-x-3">
-       
+
         <span className="text-white text-xl font-bold tracking-wide">Achal</span>
       </div>
 
