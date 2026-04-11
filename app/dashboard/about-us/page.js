@@ -1,825 +1,792 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Edit2, Trash2, X, Check, Search, Upload, Image as ImageIcon } from "lucide-react";
+import {
+  Save, Loader2, RefreshCw, Plus, Trash2,
+  Users, Briefcase, Handshake, ChevronDown, ChevronUp,
+  Upload, CheckCircle, XCircle, Image as ImageIcon,
+  FileText, Target, BarChart2, X
+} from "lucide-react";
 
-const API_BASE = "https://achal-backend-trial.tannis.in";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://achal-backend-trial.tannis.in";
 
-export default function AboutUsAdmin() {
-  const [abouts, setAbouts] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState(null); // 'success', 'error', null
-  const [saveMessage, setSaveMessage] = useState("");
+// ─── Upload helper ────────────────────────────────────────────────────────────
+const fileToBase64 = (file) =>
+  new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = (e) => rej(e);
+    r.readAsDataURL(file);
+  });
 
-  const defaultForm = {
-    title: "",
-    intro: "",
-    mission: "",
-    vision: "",
-    team: [],
-    work: [],
-    partners: [],
-    stats: [],
-  };
+async function uploadFile(file) {
+  if (!file) return null;
+  const dataUrl = await fileToBase64(file);
+  if (dataUrl.length > 1_200_000) {
+    alert("Image too large. Please compress it or use a smaller image.");
+    return null;
+  }
+  const res = await fetch(`${API_BASE}/api/upload`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename: file.name, mimeType: file.type, data: dataUrl }),
+  });
+  if (!res.ok) {
+    let msg = `Upload failed (${res.status})`;
+    try { const j = await res.json(); msg = j.message || msg; } catch (_) {}
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  return data.url || data.path || null;
+}
 
-  const [formData, setFormData] = useState(defaultForm);
-
-  useEffect(() => {
-    loadAbouts();
-  }, []);
-
-  const loadAbouts = async () => {
+// ─── Parse helpers ────────────────────────────────────────────────────────────
+const safeParse = (raw, fallback) => {
+  if (raw == null) return fallback;
+  if (Array.isArray(raw)) return raw.length > 0 ? raw : fallback;
+  if (typeof raw === "string") {
+    if (raw.trim() === "") return fallback;
     try {
-      const res = await fetch(`${API_BASE}/api/about`);
-      if (res.ok) {
-        const data = await res.json();
-        setAbouts(Array.isArray(data) ? data : []);
+      const p = JSON.parse(raw);
+      return Array.isArray(p) ? p : fallback;
+    } catch { return fallback; }
+  }
+  return fallback;
+};
+
+// ─── Shared classes ───────────────────────────────────────────────────────────
+const inputCls =
+  "w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50 text-gray-800 text-sm";
+const textareaCls =
+  "w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50 text-gray-800 resize-none text-sm";
+
+// ─── Save button ──────────────────────────────────────────────────────────────
+function SaveBtn({ onClick, saving, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={saving}
+      className="flex items-center gap-2 px-6 py-2.5 bg-[#1e2336] text-white rounded-lg hover:bg-[#29324c] transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold shadow-sm"
+    >
+      {saving
+        ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+        : <><Save className="w-4 h-4" /> {label}</>
       }
-    } catch (error) {
-      console.error("Failed to load:", error);
-    }
-  };
+    </button>
+  );
+}
 
-  // Simple image to base64 conversion
-  const convertToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = (error) => reject(error);
-    });
-  };
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function Toast({ toast }) {
+  if (!toast?.show) return null;
+  const isErr = toast.type === "error";
+  return (
+    <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-sm font-medium shadow-sm mb-4 ${
+      isErr ? "bg-red-50 text-red-800 border-red-200" : "bg-green-50 text-green-800 border-green-200"
+    }`}>
+      {isErr
+        ? <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+        : <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+      }
+      {toast.message}
+    </div>
+  );
+}
 
-  const handleImageUpload = async (e, arrayName, index, field) => {
+// ─── Image Upload Field ───────────────────────────────────────────────────────
+function ImageUploadField({ label, hint, value, onChange }) {
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+  const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      return;
-    }
-
-    // Validate file size (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Image size should be less than 2MB');
-      return;
-    }
-
-    try {
-      const base64 = await convertToBase64(file);
-      handleArrayChange(arrayName, index, field, base64);
-    } catch (error) {
-      console.error('Error converting image:', error);
-      alert('Failed to upload image');
-    }
+    setErr(""); e.target.value = ""; setUploading(true);
+    try { const url = await uploadFile(file); if (url) onChange(url); }
+    catch (ex) { setErr(ex.message || "Upload failed"); }
+    finally { setUploading(false); }
   };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleArrayChange = (arrayName, index, field, value) => {
-    setFormData((prev) => {
-      const newArray = [...(prev[arrayName] || [])];
-      newArray[index] = { ...newArray[index], [field]: value };
-      return { ...prev, [arrayName]: newArray };
-    });
-  };
-
-  const addArrayItem = (arrayName, defaultObj) => {
-    setFormData((prev) => ({
-      ...prev,
-      [arrayName]: [...(prev[arrayName] || []), defaultObj]
-    }));
-  };
-
-  const removeArrayItem = (arrayName, index) => {
-    setFormData((prev) => ({
-      ...prev,
-      [arrayName]: prev[arrayName].filter((_, i) => i !== index)
-    }));
-  };
-
-  const openCreateModal = () => {
-    setEditingId(null);
-    setFormData(defaultForm);
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (about) => {
-    setEditingId(about.id);
-    const formCopy = { ...about };
-    // Robust parsing: accept arrays, JSON strings, objects (maps), or primitive lists.
-    const parseToArray = (value, field) => {
-      if (Array.isArray(value)) return value;
-      if (value === null || value === undefined) return [];
-      if (typeof value === 'string') {
-        if (value.trim() === '') return [];
-        try {
-          const parsed = JSON.parse(value);
-          if (Array.isArray(parsed)) return parsed;
-          if (parsed && typeof parsed === 'object') {
-            if (field === 'stats') {
-              return Object.keys(parsed).map(k => ({ label: k, value: parsed[k] }));
+  return (
+    <div>
+      {label && <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>}
+      {hint && <p className="text-xs text-gray-400 mb-1.5">{hint}</p>}
+      <div className="flex gap-2">
+        <input type="url" value={value}
+          onChange={(e) => { onChange(e.target.value); setErr(""); }}
+          className={inputCls} placeholder="https://..." />
+        <label className="relative flex-shrink-0">
+          <input type="file" accept="image/*" onChange={handleFile} disabled={uploading} className="hidden" />
+          <button type="button"
+            onClick={(e) => e.currentTarget.parentElement.querySelector('input[type="file"]').click()}
+            disabled={uploading}
+            className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap"
+          >
+            {uploading
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading...</>
+              : <><Upload className="w-3.5 h-3.5" /> Upload</>
             }
-            const vals = Object.values(parsed);
-            return vals.length ? vals : [];
+          </button>
+        </label>
+      </div>
+      {err && <p className="mt-1.5 text-xs text-red-600">{err}</p>}
+    </div>
+  );
+}
+
+// ─── Section Shell ────────────────────────────────────────────────────────────
+function SectionShell({ icon: Icon, number, title, subtitle, badge, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between bg-gray-50 px-6 py-4 border-b border-gray-100 text-left hover:bg-gray-100/70 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          {Icon && <span className="p-1.5 bg-blue-100 text-blue-600 rounded-lg"><Icon className="w-4 h-4" /></span>}
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+              <span className="text-blue-400 font-bold">{number}.</span>
+              {title}
+              {badge !== undefined && (
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full text-xs font-medium">{badge}</span>
+              )}
+            </h2>
+            {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+          </div>
+        </div>
+        {open
+          ? <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          : <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        }
+      </button>
+      {open && <div className="p-6">{children}</div>}
+    </div>
+  );
+}
+
+// ─── Card Row ─────────────────────────────────────────────────────────────────
+function CardRow({ children, onRemove, canRemove }) {
+  return (
+    <div className="flex gap-3 items-start p-4 bg-gray-50 border border-gray-100 rounded-xl">
+      <div className="flex-1 space-y-3">{children}</div>
+      {canRemove && (
+        <button type="button" onClick={onRemove}
+          className="mt-7 p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors flex-shrink-0"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Saved divider ────────────────────────────────────────────────────────────
+function SavedDivider({ label }) {
+  return (
+    <div className="mt-6 pt-5 border-t border-gray-100">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">{label}</p>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ─── Saved Data Display Components ───────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function BasicInfoDisplay({ title, intro }) {
+  if (!title && !intro) return null;
+  return (
+    <>
+      <SavedDivider label="Saved Basic Info" />
+      <div className="space-y-3">
+        {title && (
+          <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+            <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">Title</p>
+            <p className="text-base font-bold text-gray-800">{title}</p>
+          </div>
+        )}
+        {intro && (
+          <div className="p-4 bg-gray-50 border border-gray-100 rounded-xl">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Introduction</p>
+            <p className="text-sm text-gray-700 leading-relaxed">{intro}</p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function MissionVisionDisplay({ mission, vision }) {
+  if (!mission && !vision) return null;
+  return (
+    <>
+      <SavedDivider label="Saved Mission & Vision" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {mission && (
+          <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
+            <p className="text-xs font-semibold text-amber-500 uppercase tracking-wider mb-2">Mission</p>
+            <p className="text-sm text-gray-700 leading-relaxed">{mission}</p>
+          </div>
+        )}
+        {vision && (
+          <div className="p-4 bg-purple-50 border border-purple-100 rounded-xl">
+            <p className="text-xs font-semibold text-purple-500 uppercase tracking-wider mb-2">Vision</p>
+            <p className="text-sm text-gray-700 leading-relaxed">{vision}</p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function StatsDisplay({ stats }) {
+  if (!stats || stats.length === 0) return null;
+  return (
+    <>
+      <SavedDivider label="Saved Statistics" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {stats.map((s, i) => (
+          <div key={i} className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl text-center">
+            <p className="text-xl font-bold text-blue-700">{s.value || "—"}</p>
+            <p className="text-xs text-gray-500 mt-1">{s.label || "—"}</p>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function TeamDisplay({ members }) {
+  if (!members || members.length === 0) return null;
+  return (
+    <>
+      <SavedDivider label="Saved Team Members" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {members.map((m, i) => (
+          <div key={i} className="flex items-start gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+            {m.photo ? (
+              <img src={m.photo} alt={m.name}
+                className="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-blue-200 flex items-center justify-center flex-shrink-0">
+                <Users className="w-5 h-5 text-blue-500" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-800 truncate">{m.name || "—"}</p>
+              <p className="text-xs text-blue-600 truncate">{m.role || "No role"}</p>
+              {m.bio && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{m.bio}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function ProjectsDisplay({ projects }) {
+  if (!projects || projects.length === 0) return null;
+  return (
+    <>
+      <SavedDivider label="Saved Projects" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {projects.map((p, i) => (
+          <div key={i} className="rounded-xl border border-gray-100 overflow-hidden bg-gray-50">
+            {p.image ? (
+              <img src={p.image} alt={p.title} className="w-full h-36 object-cover" />
+            ) : (
+              <div className="w-full h-36 bg-gray-200 flex items-center justify-center">
+                <ImageIcon className="w-8 h-8 text-gray-400" />
+              </div>
+            )}
+            <div className="p-3">
+              <p className="text-sm font-semibold text-gray-800">{p.title || "Untitled"}</p>
+              {p.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{p.description}</p>}
+              {p.link && (
+                <a href={p.link} target="_blank" rel="noreferrer"
+                  className="text-xs text-blue-500 hover:underline mt-1 inline-block truncate max-w-full"
+                >{p.link}</a>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function PartnersDisplay({ partners }) {
+  if (!partners || partners.length === 0) return null;
+  return (
+    <>
+      <SavedDivider label="Saved Partners" />
+      <div className="flex flex-wrap gap-3">
+        {partners.map((p, i) => (
+          <div key={i} className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl">
+            {p.logo ? (
+              <img src={p.logo} alt={p.name} className="w-8 h-8 object-contain rounded" />
+            ) : (
+              <Handshake className="w-5 h-5 text-gray-400" />
+            )}
+            <span className="text-sm font-medium text-gray-700">{p.name || "—"}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ─── Main Component ───────────────────────────────────────════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+export default function AboutPage() {
+  const [recordId, setRecordId] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Per-section toasts
+  const SECTIONS = ["basicInfo", "missionVision", "stats", "team", "projects", "partners"];
+  const emptyToast = { show: false, message: "", type: "success" };
+  const [toasts, setToasts] = useState(Object.fromEntries(SECTIONS.map((s) => [s, emptyToast])));
+  const showToast = (section, msg, type = "success") => {
+    setToasts((t) => ({ ...t, [section]: { show: true, message: msg, type } }));
+    setTimeout(() => setToasts((t) => ({ ...t, [section]: emptyToast })), 3500);
+  };
+
+  // Per-section saving flags
+  const [saving, setSaving] = useState(Object.fromEntries(SECTIONS.map((s) => [s, false])));
+  const setSavingFor = (section, val) => setSaving((s) => ({ ...s, [section]: val }));
+
+  // ── Section form states ─────────────────────────────────────────────────────
+  const [title, setTitle] = useState("");
+  const [intro, setIntro] = useState("");
+  const [savedBasicInfo, setSavedBasicInfo] = useState({ title: "", intro: "" });
+
+  const [mission, setMission] = useState("");
+  const [vision, setVision] = useState("");
+  const [savedMissionVision, setSavedMissionVision] = useState({ mission: "", vision: "" });
+
+  const [stats, setStats] = useState([{ label: "", value: "" }]);
+  const [savedStats, setSavedStats] = useState([]);
+
+  const [team, setTeam] = useState([{ name: "", role: "", bio: "", photo: "" }]);
+  const [savedTeam, setSavedTeam] = useState([]);
+
+  const [projects, setProjects] = useState([{ title: "", description: "", image: "", link: "" }]);
+  const [savedProjects, setSavedProjects] = useState([]);
+
+  const [partners, setPartners] = useState([{ name: "", logo: "" }]);
+  const [savedPartners, setSavedPartners] = useState([]);
+
+  // ── Fetch ───────────────────────────────────────────────────────────────────
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/about`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [data];
+      const rec = list.find((r) => r.isPublished) || list[0] || null;
+      if (rec) {
+        setRecordId(rec.id ?? null);
+
+        // Basic Info
+        setTitle(rec.title ?? "");
+        setIntro(rec.intro ?? "");
+        setSavedBasicInfo({ title: rec.title ?? "", intro: rec.intro ?? "" });
+
+        // Mission & Vision
+        setMission(rec.mission ?? "");
+        setVision(rec.vision ?? "");
+        setSavedMissionVision({ mission: rec.mission ?? "", vision: rec.vision ?? "" });
+
+        // Stats
+        const parsedStats = safeParse(rec.stats, []);
+        const normStats = parsedStats.map((s) =>
+          typeof s === "object" ? s : { label: String(s || ""), value: "" }
+        );
+        setStats(normStats.length > 0 ? normStats : [{ label: "", value: "" }]);
+        setSavedStats(normStats);
+
+        // Team
+        const parsedTeam = safeParse(rec.team, []);
+        const normTeam = parsedTeam.map((t) =>
+          typeof t === "object" ? t : { name: String(t || ""), role: "", bio: "", photo: "" }
+        );
+        setTeam(normTeam.length > 0 ? normTeam : [{ name: "", role: "", bio: "", photo: "" }]);
+        setSavedTeam(normTeam);
+
+        // Projects
+        const parsedWork = safeParse(rec.work, []);
+        const normWork = parsedWork.map((w) =>
+          typeof w === "object" ? w : { title: String(w || ""), description: "", image: "", link: "" }
+        );
+        setProjects(normWork.length > 0 ? normWork : [{ title: "", description: "", image: "", link: "" }]);
+        setSavedProjects(normWork);
+
+        // Partners
+        const parsedPartners = safeParse(rec.partners, []);
+        const normPartners = parsedPartners.map((p) =>
+          typeof p === "object" ? p : { name: String(p || ""), logo: "" }
+        );
+        setPartners(normPartners.length > 0 ? normPartners : [{ name: "", logo: "" }]);
+        setSavedPartners(normPartners);
+      }
+    } catch {
+      // silent — sections render empty
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  // ── Array helpers ────────────────────────────────────────────────────────────
+  const updateItem = (setter, idx, field, val) =>
+    setter((arr) => { const next = [...arr]; next[idx] = { ...next[idx], [field]: val }; return next; });
+  const addItem = (setter, blank) => setter((arr) => [...arr, { ...blank }]);
+  const removeItem = (setter, idx) => setter((arr) => arr.filter((_, i) => i !== idx));
+
+  // ── Section save ─────────────────────────────────────────────────────────────
+  const saveSection = async (section) => {
+    setSavingFor(section, true);
+    try {
+      const payload = {};
+
+      switch (section) {
+        case "basicInfo":
+          if (!title.trim()) {
+            showToast("basicInfo", "Title is required.", "error");
+            setSavingFor("basicInfo", false);
+            return;
           }
-          // fallback: comma-separated string
-          return value.split ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
-        } catch (e) {
-          return value.split ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+          payload.title = title;
+          payload.intro = intro;
+          break;
+        case "missionVision":
+          payload.mission = mission;
+          payload.vision = vision;
+          break;
+        case "stats": {
+          const clean = stats.filter(
+            (s) => String(s.value ?? "").trim() || String(s.label ?? "").trim()
+          );
+          payload.stats = JSON.stringify(clean);
+          break;
         }
-      }
-      if (typeof value === 'object') {
-        if (field === 'stats') {
-          return Object.keys(value).map(k => ({ label: k, value: value[k] }));
+        case "team": {
+          const clean = team.filter((m) => m.name?.trim());
+          payload.team = JSON.stringify(clean);
+          break;
         }
-        const vals = Object.values(value);
-        return vals.length ? vals : [value];
-      }
-      return [];
-    };
-
-    ['team', 'work', 'partners', 'stats'].forEach((field) => {
-      formCopy[field] = parseToArray(formCopy[field], field);
-    });
-
-    // Normalize simple primitives into objects expected by the form
-    if (Array.isArray(formCopy.stats)) {
-      formCopy.stats = formCopy.stats.map(s => (s && typeof s === 'object' ? s : { label: '', value: s }));
-    }
-    if (Array.isArray(formCopy.team)) {
-      formCopy.team = formCopy.team.map(t => (t && typeof t === 'object' ? t : { name: String(t || ''), role: '', bio: '', photo: '' }));
-    }
-    if (Array.isArray(formCopy.work)) {
-      formCopy.work = formCopy.work.map(w => (w && typeof w === 'object' ? w : { title: String(w || ''), description: '', image: '', link: '' }));
-    }
-    if (Array.isArray(formCopy.partners)) {
-      formCopy.partners = formCopy.partners.map(p => (p && typeof p === 'object' ? p : { name: String(p || ''), logo: '' }));
-    }
-
-    console.log("Loaded form data:", formCopy);
-    setFormData(formCopy);
-    setIsModalOpen(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this version?")) return;
-
-    try {
-      await fetch(`${API_BASE}/api/about/${id}`, { method: "DELETE" });
-      loadAbouts();
-    } catch (error) {
-      console.error("Delete failed:", error);
-    }
-  };
-
-  const togglePublish = async (about) => {
-    try {
-      await fetch(`${API_BASE}/api/about/${about.id}/publish`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publish: !about.isPublished })
-      });
-      loadAbouts();
-    } catch (error) {
-      console.error("Toggle failed:", error);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!formData.title.trim()) {
-      setSaveStatus('error');
-      setSaveMessage("Title is required");
-      setTimeout(() => setSaveStatus(null), 3000);
-      return;
-    }
-
-    setIsSaving(true);
-    setSaveStatus(null);
-
-    const payload = { ...formData };
-
-    // Convert arrays to JSON strings and filter out empty items (safe checks)
-    ["team", "work", "partners", "stats"].forEach((field) => {
-      let arrayData = payload[field] || [];
-
-      // Ensure arrayData is an array (could be a JSON string)
-      if (!Array.isArray(arrayData)) {
-        try {
-          arrayData = JSON.parse(arrayData);
-        } catch (e) {
-          arrayData = [];
+        case "projects": {
+          const clean = projects.filter((p) => p.title?.trim());
+          payload.work = JSON.stringify(clean);
+          break;
         }
+        case "partners": {
+          const clean = partners.filter((p) => p.name?.trim());
+          payload.partners = JSON.stringify(clean);
+          break;
+        }
+        default:
+          break;
       }
-      arrayData = Array.isArray(arrayData) ? arrayData : [];
 
-      arrayData = arrayData.filter((item) => {
-        if (!item) return false;
-        if (field === "partners") return String(item.name || '').trim() !== '';
-        if (field === "stats") return (item.value !== undefined && item.value !== null && String(item.value).trim() !== '');
-        if (field === "team") return String(item.name || '').trim() !== '';
-        if (field === "work") return String(item.title || '').trim() !== '';
-        return true;
-      });
+      // POST always needs at least a title
+      if (!recordId && !payload.title) payload.title = title || "About Us";
 
-      payload[field] = JSON.stringify(arrayData);
-    });
-
-    console.log("Final payload:", payload);
-
-    try {
-      const url = editingId
-        ? `${API_BASE}/api/about/${editingId}`
+      const url = recordId
+        ? `${API_BASE}/api/about/${recordId}`
         : `${API_BASE}/api/about`;
-      const method = editingId ? "PUT" : "POST";
-
-      console.log("Saving to:", url, "Method:", method);
+      const method = recordId ? "PUT" : "POST";
 
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
-
       if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Save failed: ${res.status} - ${errorText}`);
+        const text = await res.text();
+        throw new Error(`Save failed (${res.status}): ${text}`);
       }
+      const result = await res.json();
+      if (!recordId && result.id) setRecordId(result.id);
 
-      setSaveStatus('success');
-      setSaveMessage(editingId ? "Updated successfully!" : "Created successfully!");
+      // Sync saved display
+      if (section === "basicInfo")     setSavedBasicInfo({ title, intro });
+      if (section === "missionVision") setSavedMissionVision({ mission, vision });
+      if (section === "stats")         setSavedStats(stats.filter((s) => String(s.value ?? "").trim() || String(s.label ?? "").trim()));
+      if (section === "team")          setSavedTeam(team.filter((m) => m.name?.trim()));
+      if (section === "projects")      setSavedProjects(projects.filter((p) => p.title?.trim()));
+      if (section === "partners")      setSavedPartners(partners.filter((p) => p.name?.trim()));
 
-      await loadAbouts();
-
-      setTimeout(() => {
-        setIsModalOpen(false);
-        setSaveStatus(null);
-      }, 1500);
-
-    } catch (error) {
-      console.error("Save error:", error);
-      setSaveStatus('error');
-      setSaveMessage(error.message || "Failed to save. Please try again.");
-      setTimeout(() => setSaveStatus(null), 4000);
+      const labels = {
+        basicInfo: "Basic Info", missionVision: "Mission & Vision",
+        stats: "Statistics", team: "Team", projects: "Projects", partners: "Partners",
+      };
+      showToast(section, `${labels[section]} saved successfully!`);
+    } catch (ex) {
+      showToast(section, ex.message || "Error saving. Please try again.", "error");
     } finally {
-      setIsSaving(false);
+      setSavingFor(section, false);
     }
   };
 
-  const filteredAbouts = abouts.filter((a) =>
-    a.title?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
+  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      {/* Header */}
+    <div className="max-w-5xl mx-auto pb-12">
+
+      {/* Page Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">About Us Manager</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage your About Us page content</p>
+          <h1 className="text-2xl font-bold text-gray-800">About Page</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Manage all content shown on the public About page. Each section saves independently.
+          </p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors"
+        <button onClick={fetchData} disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
         >
-          <Plus className="w-5 h-5" />
-          <span>Create New</span>
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          Refresh
         </button>
       </div>
 
-      {/* Search */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-gray-200 bg-gray-50">
-          <div className="relative max-w-md">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by title..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none"
-            />
-          </div>
+      {loading ? (
+        <div className="bg-white rounded-xl border border-gray-100 p-12 flex flex-col items-center justify-center min-h-96">
+          <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-4" />
+          <p className="text-gray-400 text-sm">Loading about page data...</p>
         </div>
+      ) : (
+        <div className="space-y-5">
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">Title</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">Status</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-500">Updated</th>
-                <th className="px-6 py-3 text-right text-sm font-medium text-gray-500">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredAbouts.length === 0 ? (
-                <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
-                    No content found. Create your first version!
-                  </td>
-                </tr>
-              ) : (
-                filteredAbouts.map((about) => (
-                  <tr key={about.id} className="hover:bg-gray-50 group">
-                    <td className="px-6 py-4">
-                      <div className="max-w-xs">
-                        <p className="font-semibold text-gray-900 truncate">{about.title || "Untitled"}</p>
-                        <p className="text-xs text-gray-500 truncate mt-1">{about.intro || "No intro"}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => togglePublish(about)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${about.isPublished
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-600"
-                          }`}
-                      >
-                        {about.isPublished ? "PUBLISHED" : "DRAFT"}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {about.updatedAt
-                        ? new Date(about.updatedAt).toLocaleDateString()
-                        : new Date(about.creationDate).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => openEditModal(about)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(about.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-800">
-                {editingId ? "Edit About Us" : "Create About Us"}
-              </h2>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Status Message */}
-            {saveStatus && (
-              <div className={`px-6 py-3 border-b text-sm font-medium transition-all ${saveStatus === 'success'
-                ? 'bg-green-50 border-green-200 text-green-700'
-                : 'bg-red-50 border-red-200 text-red-700'
-                }`}>
-                {saveMessage}
+          {/* ── 1. Basic Info ─────────────────────────────────────────────────── */}
+          <SectionShell number="1" icon={FileText} title="Basic Information"
+            subtitle="Page title and introductory paragraph shown at the top of the About page.">
+            <Toast toast={toasts.basicInfo} />
+            <div className="space-y-4 mb-5">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Page Title <span className="text-red-400">*</span>
+                </label>
+                <input type="text" value={title} onChange={(e) => setTitle(e.target.value)}
+                  className={inputCls} placeholder="e.g. About Our Company" />
               </div>
-            )}
-
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto flex-1">
-              <form id="about-form" onSubmit={handleSubmit} className="space-y-6">
-
-                {/* Basic Info */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-800 border-b pb-2">Basic Information</h3>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Title *
-                    </label>
-                    <input
-                      type="text"
-                      name="title"
-                      required
-                      value={formData.title}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none"
-                      placeholder="About Our Company"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Introduction
-                    </label>
-                    <textarea
-                      name="intro"
-                      rows="2"
-                      value={formData.intro}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none resize-none"
-                      placeholder="Welcome message..."
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Mission
-                      </label>
-                      <textarea
-                        name="mission"
-                        rows="4"
-                        value={formData.mission}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none resize-none"
-                        placeholder="Our mission..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Vision
-                      </label>
-                      <textarea
-                        name="vision"
-                        rows="4"
-                        value={formData.vision}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none resize-none"
-                        placeholder="Our vision..."
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Team Section */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center border-b pb-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-gray-800">Team Members</h3>
-                      {formData.team?.length > 0 && (
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
-                          {formData.team.length}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-2 items-center">
-                      <button
-                        type="button"
-                        onClick={() => addArrayItem('team', { name: '', role: '', bio: '', photo: '' })}
-                        className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1 rounded-lg flex items-center gap-1"
-                      >
-                        <Plus className="w-4 h-4" /> Add Member
-                      </button>
-                      <button
-                        type="submit"
-                        form="about-form"
-                        disabled={isSaving}
-                        title="Save current progress"
-                        className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50"
-                      >
-                        <Check className="w-3 h-3" /> Save
-                      </button>
-                    </div>
-                  </div>
-
-                  {formData.team?.map((member, index) => (
-                    <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200 relative">
-                      <button
-                        type="button"
-                        onClick={() => removeArrayItem('team', index)}
-                        className="absolute top-2 right-2 text-red-500 hover:bg-red-50 p-1 rounded"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                        <input
-                          type="text"
-                          placeholder="Name"
-                          value={member.name}
-                          onChange={(e) => handleArrayChange('team', index, 'name', e.target.value)}
-                          className="px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Role"
-                          value={member.role}
-                          onChange={(e) => handleArrayChange('team', index, 'role', e.target.value)}
-                          className="px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none"
-                        />
-                      </div>
-
-                      <textarea
-                        placeholder="Bio"
-                        rows="2"
-                        value={member.bio}
-                        onChange={(e) => handleArrayChange('team', index, 'bio', e.target.value)}
-                        className="w-full px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none resize-none mb-3"
-                      />
-
-                      {/* Image Upload */}
-                      <div className="flex items-center gap-3">
-                        <label className="flex-1 cursor-pointer">
-                          <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors">
-                            <Upload className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">Upload Photo</span>
-                          </div>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleImageUpload(e, 'team', index, 'photo')}
-                            className="hidden"
-                          />
-                        </label>
-                        {member.photo && (
-                          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-orange-500">
-                            <img src={member.photo} alt="Preview" className="w-full h-full object-cover" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Work/Projects Section */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center border-b pb-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-gray-800">Projects</h3>
-                      {formData.work?.length > 0 && (
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
-                          {formData.work.length}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-2 items-center">
-                      <button
-                        type="button"
-                        onClick={() => addArrayItem('work', { title: '', description: '', image: '', link: '' })}
-                        className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1 rounded-lg flex items-center gap-1"
-                      >
-                        <Plus className="w-4 h-4" /> Add Project
-                      </button>
-                      <button
-                        type="submit"
-                        form="about-form"
-                        disabled={isSaving}
-                        title="Save current progress"
-                        className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50"
-                      >
-                        <Check className="w-3 h-3" /> Save
-                      </button>
-                    </div>
-                  </div>
-
-                  {formData.work?.map((project, index) => (
-                    <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200 relative">
-                      <button
-                        type="button"
-                        onClick={() => removeArrayItem('work', index)}
-                        className="absolute top-2 right-2 text-red-500 hover:bg-red-50 p-1 rounded"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-
-                      <input
-                        type="text"
-                        placeholder="Project Title"
-                        value={project.title}
-                        onChange={(e) => handleArrayChange('work', index, 'title', e.target.value)}
-                        className="w-full px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none mb-3"
-                      />
-
-                      <textarea
-                        placeholder="Description"
-                        rows="2"
-                        value={project.description}
-                        onChange={(e) => handleArrayChange('work', index, 'description', e.target.value)}
-                        className="w-full px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none resize-none mb-3"
-                      />
-
-                      <input
-                        type="url"
-                        placeholder="Project Link (https://...)"
-                        value={project.link}
-                        onChange={(e) => handleArrayChange('work', index, 'link', e.target.value)}
-                        className="w-full px-3 py-2 rounded border border-gray-300 focus:border-orange-500 outline-none mb-3"
-                      />
-
-                      {/* Image Upload */}
-                      <div className="flex items-center gap-3">
-                        <label className="flex-1 cursor-pointer">
-                          <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors">
-                            <Upload className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">Upload Image</span>
-                          </div>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleImageUpload(e, 'work', index, 'image')}
-                            className="hidden"
-                          />
-                        </label>
-                        {project.image && (
-                          <div className="w-16 h-16 rounded overflow-hidden border-2 border-orange-500">
-                            <img src={project.image} alt="Preview" className="w-full h-full object-cover" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Stats & Partners */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                  {/* Stats */}
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center border-b pb-2">
-                      <h3 className="font-semibold text-gray-800">Statistics</h3>
-                      <div className="flex gap-1 items-center">
-                        <button
-                          type="button"
-                          onClick={() => addArrayItem('stats', { label: '', value: '' })}
-                          className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded"
-                        >
-                          + Add
-                        </button>
-                        <button
-                          type="submit"
-                          form="about-form"
-                          disabled={isSaving}
-                          title="Save current progress"
-                          className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-0.5 rounded flex items-center gap-1 disabled:opacity-50"
-                        >
-                          <Check className="w-3 h-3" /> Save
-                        </button>
-                      </div>
-                    </div>
-                    {formData.stats?.map((stat, index) => (
-                      <div key={index} className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="100+"
-                          value={stat.value}
-                          onChange={(e) => handleArrayChange('stats', index, 'value', e.target.value)}
-                          className="w-24 px-2 py-1 rounded border border-gray-300 focus:border-orange-500 outline-none text-sm font-bold"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Label"
-                          value={stat.label}
-                          onChange={(e) => handleArrayChange('stats', index, 'label', e.target.value)}
-                          className="flex-1 px-2 py-1 rounded border border-gray-300 focus:border-orange-500 outline-none text-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeArrayItem('stats', index)}
-                          className="text-red-500 hover:bg-red-50 p-1 rounded"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Partners */}
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center border-b pb-2">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-gray-800">Partners</h3>
-                        {formData.partners?.length > 0 && (
-                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
-                            {formData.partners.length}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-1 items-center">
-                        <button
-                          type="button"
-                          onClick={() => addArrayItem('partners', { name: '', logo: '' })}
-                          className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded"
-                        >
-                          + Add
-                        </button>
-                        <button
-                          type="submit"
-                          form="about-form"
-                          disabled={isSaving}
-                          title="Save current progress"
-                          className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-0.5 rounded flex items-center gap-1 disabled:opacity-50"
-                        >
-                          <Check className="w-3 h-3" /> Save
-                        </button>
-                      </div>
-                    </div>
-
-                    {formData.partners && formData.partners.length === 0 && (
-                      <div className="text-xs text-gray-500 italic py-2">No partners added yet.</div>
-                    )}
-
-                    {formData.partners?.map((partner, index) => (
-                      <div key={index} className="space-y-2 p-2 bg-white rounded border border-gray-200">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="Partner Name *"
-                            value={partner.name || ''}
-                            onChange={(e) => handleArrayChange('partners', index, 'name', e.target.value)}
-                            className={`flex-1 px-2 py-1 rounded border ${!partner.name ? 'border-red-300 bg-red-50' : 'border-gray-300'} focus:border-orange-500 outline-none text-sm`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeArrayItem('partners', index)}
-                            className="text-red-500 hover:bg-red-50 p-1 rounded"
-                            title="Delete this partner"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label className="flex-1 cursor-pointer">
-                            <div className="flex items-center gap-2 px-2 py-1 bg-gray-50 border border-gray-300 rounded hover:bg-gray-100 transition-colors">
-                              <ImageIcon className="w-3 h-3 text-gray-500" />
-                              <span className="text-xs text-gray-600">Logo</span>
-                            </div>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => handleImageUpload(e, 'partners', index, 'logo')}
-                              className="hidden"
-                            />
-                          </label>
-                          {partner.logo && (
-                            <div className="w-8 h-8 rounded overflow-hidden border border-gray-300">
-                              <img src={partner.logo} alt="Logo" className="w-full h-full object-contain" />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-              </form>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center bg-gray-50">
-              <div className="text-sm text-gray-500">
-                {formData.isPublished ? "Published" : "Draft"}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Introduction</label>
+                <textarea rows={4} value={intro} onChange={(e) => setIntro(e.target.value)}
+                  className={textareaCls}
+                  placeholder="Write a welcoming introduction paragraph about your company..." />
               </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  disabled={isSaving}
-                  className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  form="about-form"
-                  disabled={isSaving}
-                  className="px-6 py-2 rounded-lg bg-orange-600 text-white hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isSaving ? (
-                    <>
-                      <span className="inline-block animate-spin">⟳</span>
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" />
-                      <span>{editingId ? "Update" : "Create"}</span>
-                    </>
+            </div>
+            <div className="flex justify-end">
+              <SaveBtn onClick={() => saveSection("basicInfo")} saving={saving.basicInfo} label="Save Basic Info" />
+            </div>
+            <BasicInfoDisplay title={savedBasicInfo.title} intro={savedBasicInfo.intro} />
+          </SectionShell>
+
+          {/* ── 2. Mission & Vision ───────────────────────────────────────────── */}
+          <SectionShell number="2" icon={Target} title="Mission & Vision"
+            subtitle="Company mission and vision statements." defaultOpen={false}>
+            <Toast toast={toasts.missionVision} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Mission</label>
+                <textarea rows={5} value={mission} onChange={(e) => setMission(e.target.value)}
+                  className={textareaCls}
+                  placeholder="To provide professional, dedicated, one-point service excellence..." />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Vision</label>
+                <textarea rows={5} value={vision} onChange={(e) => setVision(e.target.value)}
+                  className={textareaCls}
+                  placeholder="A future where sustainable infrastructure powers every community..." />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <SaveBtn onClick={() => saveSection("missionVision")} saving={saving.missionVision} label="Save Mission & Vision" />
+            </div>
+            <MissionVisionDisplay mission={savedMissionVision.mission} vision={savedMissionVision.vision} />
+          </SectionShell>
+
+          {/* ── 3. Statistics ─────────────────────────────────────────────────── */}
+          <SectionShell number="3" icon={BarChart2} title="Statistics"
+            subtitle="Key numbers and metrics shown on the About page."
+            badge={stats.length} defaultOpen={false}>
+            <Toast toast={toasts.stats} />
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-medium text-gray-500 w-28 flex-shrink-0">Value</span>
+                <span className="text-xs font-medium text-gray-500 flex-1">Label</span>
+              </div>
+              {stats.map((stat, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input type="text" value={stat.value}
+                    onChange={(e) => updateItem(setStats, i, "value", e.target.value)}
+                    className={`${inputCls} w-28 flex-shrink-0`}
+                    placeholder="500+" />
+                  <input type="text" value={stat.label}
+                    onChange={(e) => updateItem(setStats, i, "label", e.target.value)}
+                    className={inputCls}
+                    placeholder="Projects Delivered" />
+                  {stats.length > 1 && (
+                    <button type="button" onClick={() => removeItem(setStats, i)}
+                      className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors flex-shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   )}
-                </button>
-              </div>
+                </div>
+              ))}
             </div>
-          </div>
+            <div className="flex items-center justify-between">
+              <button type="button" onClick={() => addItem(setStats, { label: "", value: "" })}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+              >
+                <Plus className="w-4 h-4" /> Add Stat
+              </button>
+              <SaveBtn onClick={() => saveSection("stats")} saving={saving.stats} label="Save Statistics" />
+            </div>
+            <StatsDisplay stats={savedStats} />
+          </SectionShell>
+
+          {/* ── 4. Team ───────────────────────────────────────────────────────── */}
+          <SectionShell number="4" icon={Users} title="Team Members"
+            subtitle="People displayed in the team section of the About page."
+            badge={team.length} defaultOpen={false}>
+            <Toast toast={toasts.team} />
+            <div className="space-y-3 mb-4">
+              {team.map((member, i) => (
+                <CardRow key={i} onRemove={() => removeItem(setTeam, i)} canRemove={team.length > 1}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+                      <input type="text" value={member.name}
+                        onChange={(e) => updateItem(setTeam, i, "name", e.target.value)}
+                        className={inputCls} placeholder="e.g. Rahul Sharma" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+                      <input type="text" value={member.role}
+                        onChange={(e) => updateItem(setTeam, i, "role", e.target.value)}
+                        className={inputCls} placeholder="e.g. Lead Engineer" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Bio</label>
+                    <textarea rows={2} value={member.bio}
+                      onChange={(e) => updateItem(setTeam, i, "bio", e.target.value)}
+                      className={textareaCls} placeholder="Short biography..." />
+                  </div>
+                  <ImageUploadField label="Photo" hint="Square image recommended (200×200 px)"
+                    value={member.photo} onChange={(url) => updateItem(setTeam, i, "photo", url)} />
+                  {member.photo && (
+                    <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-blue-200">
+                      <img src={member.photo} alt="preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </CardRow>
+              ))}
+            </div>
+            <div className="flex items-center justify-between">
+              <button type="button" onClick={() => addItem(setTeam, { name: "", role: "", bio: "", photo: "" })}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+              >
+                <Plus className="w-4 h-4" /> Add Member
+              </button>
+              <SaveBtn onClick={() => saveSection("team")} saving={saving.team} label="Save Team" />
+            </div>
+            <TeamDisplay members={savedTeam} />
+          </SectionShell>
+
+          {/* ── 5. Projects ───────────────────────────────────────────────────── */}
+          <SectionShell number="5" icon={Briefcase} title="Projects"
+            subtitle="Work showcased on the About page."
+            badge={projects.length} defaultOpen={false}>
+            <Toast toast={toasts.projects} />
+            <div className="space-y-3 mb-4">
+              {projects.map((proj, i) => (
+                <CardRow key={i} onRemove={() => removeItem(setProjects, i)} canRemove={projects.length > 1}>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Project Title</label>
+                    <input type="text" value={proj.title}
+                      onChange={(e) => updateItem(setProjects, i, "title", e.target.value)}
+                      className={inputCls} placeholder="e.g. Highway Bridge Construction" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                    <textarea rows={2} value={proj.description}
+                      onChange={(e) => updateItem(setProjects, i, "description", e.target.value)}
+                      className={textareaCls} placeholder="Brief project description..." />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Project Link</label>
+                    <input type="url" value={proj.link}
+                      onChange={(e) => updateItem(setProjects, i, "link", e.target.value)}
+                      className={inputCls} placeholder="https://..." />
+                  </div>
+                  <ImageUploadField label="Project Image" hint="Upload or paste URL."
+                    value={proj.image} onChange={(url) => updateItem(setProjects, i, "image", url)} />
+                  {proj.image && (
+                    <div className="rounded-lg overflow-hidden h-24 bg-gray-200">
+                      <img src={proj.image} alt="preview" className="w-full h-full object-cover opacity-90" />
+                    </div>
+                  )}
+                </CardRow>
+              ))}
+            </div>
+            <div className="flex items-center justify-between">
+              <button type="button"
+                onClick={() => addItem(setProjects, { title: "", description: "", image: "", link: "" })}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+              >
+                <Plus className="w-4 h-4" /> Add Project
+              </button>
+              <SaveBtn onClick={() => saveSection("projects")} saving={saving.projects} label="Save Projects" />
+            </div>
+            <ProjectsDisplay projects={savedProjects} />
+          </SectionShell>
+
+          {/* ── 6. Partners ───────────────────────────────────────────────────── */}
+          <SectionShell number="6" icon={Handshake} title="Partners"
+            subtitle="Partner logos and names displayed on the About page."
+            badge={partners.length} defaultOpen={false}>
+            <Toast toast={toasts.partners} />
+            <div className="space-y-3 mb-4">
+              {partners.map((partner, i) => (
+                <CardRow key={i} onRemove={() => removeItem(setPartners, i)} canRemove={partners.length > 1}>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Partner Name <span className="text-red-400">*</span>
+                    </label>
+                    <input type="text" value={partner.name}
+                      onChange={(e) => updateItem(setPartners, i, "name", e.target.value)}
+                      className={`${inputCls} ${!partner.name ? "border-red-200 bg-red-50" : ""}`}
+                      placeholder="e.g. Acme Corp" />
+                  </div>
+                  <ImageUploadField label="Logo"
+                    hint="Upload or paste URL. PNG with transparent background preferred."
+                    value={partner.logo}
+                    onChange={(url) => updateItem(setPartners, i, "logo", url)} />
+                  {partner.logo && (
+                    <div className="w-20 h-12 rounded overflow-hidden border border-gray-200 bg-white flex items-center justify-center p-1">
+                      <img src={partner.logo} alt="logo" className="max-w-full max-h-full object-contain" />
+                    </div>
+                  )}
+                </CardRow>
+              ))}
+            </div>
+            <div className="flex items-center justify-between">
+              <button type="button" onClick={() => addItem(setPartners, { name: "", logo: "" })}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+              >
+                <Plus className="w-4 h-4" /> Add Partner
+              </button>
+              <SaveBtn onClick={() => saveSection("partners")} saving={saving.partners} label="Save Partners" />
+            </div>
+            <PartnersDisplay partners={savedPartners} />
+          </SectionShell>
+
         </div>
       )}
     </div>
