@@ -176,7 +176,7 @@ export default function AboutUsAdmin() {
     // Convert arrays to JSON strings and filter out empty items
     ["team", "work", "partners", "stats"].forEach((field) => {
       let arrayData = payload[field] || [];
-      
+
       // For partners and stats, filter out empty items
       if (field === "partners") {
         arrayData = arrayData.filter(item => item.name && item.name.trim());
@@ -191,7 +191,7 @@ export default function AboutUsAdmin() {
       if (field === "work") {
         arrayData = arrayData.filter(item => item.title && item.title.trim());
       }
-      
+
       payload[field] = JSON.stringify(arrayData);
     });
 
@@ -303,8 +303,8 @@ export default function AboutUsAdmin() {
                       <button
                         onClick={() => togglePublish(about)}
                         className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${about.isPublished
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-600"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-600"
                           }`}
                       >
                         {about.isPublished ? "PUBLISHED" : "DRAFT"}
@@ -359,8 +359,8 @@ export default function AboutUsAdmin() {
             {/* Status Message */}
             {saveStatus && (
               <div className={`px-6 py-3 border-b text-sm font-medium transition-all ${saveStatus === 'success'
-                  ? 'bg-green-50 border-green-200 text-green-700'
-                  : 'bg-red-50 border-red-200 text-red-700'
+                ? 'bg-green-50 border-green-200 text-green-700'
+                : 'bg-red-50 border-red-200 text-red-700'
                 }`}>
                 {saveMessage}
               </div>
@@ -695,11 +695,11 @@ export default function AboutUsAdmin() {
                         </button>
                       </div>
                     </div>
-                    
+
                     {formData.partners && formData.partners.length === 0 && (
                       <div className="text-xs text-gray-500 italic py-2">No partners added yet.</div>
                     )}
-                    
+
                     {formData.partners?.map((partner, index) => (
                       <div key={index} className="space-y-2 p-2 bg-white rounded border border-gray-200">
                         <div className="flex gap-2">
