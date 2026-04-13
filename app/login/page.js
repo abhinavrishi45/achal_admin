@@ -29,10 +29,8 @@ export default function LoginPage() {
         <div className="p-8">
           <div className="flex items-center justify-center mb-8">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center shadow-lg shadow-red-500/30">
-                <div className="w-6 h-6 bg-white rounded-md transform rotate-45"></div>
-              </div>
-              <span className="text-2xl font-bold text-gray-800 tracking-wide">Achal</span>
+             
+              <span className="text-2xl font-bold text-gray-800 tracking-wide"> Go Achal - Admin</span>
             </div>
           </div>
 
