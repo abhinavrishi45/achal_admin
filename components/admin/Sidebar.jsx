@@ -68,7 +68,7 @@ export default function Sidebar() {
         { name: "No Services Yet", href: "/dashboard/services", icon: FileText }
       ],
     },
-    { name: "About Us", href: "/dashboard/about-us", icon: Info },
+    { name: "About-Us", href: "/dashboard/about-us", icon: Info },
     { name: "Terms and Condition", href: "/dashboard/terms", icon: FileText },
     { name: "Careers", href: "/dashboard/careers", icon: BriefcaseBusiness },
     { name: "Applicants", href: "/dashboard/applicants", icon: Users },
