@@ -54,9 +54,9 @@ export default function Sidebar() {
   }, [pathname]); // also reload when pathname changes
 
   const sidebarItems = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Your front page", href: "/dashboard/front-page", icon: Home },
-    { name: "Your Services", href: "/dashboard/services", icon: Briefcase },
+    // { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Home Page", href: "/dashboard/front-page", icon: Home },
+    { name: "Our Services", href: "/dashboard/services", icon: Briefcase },
     {
       name: "Service Pages",
       icon: Settings,
