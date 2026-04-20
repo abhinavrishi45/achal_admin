@@ -57,12 +57,12 @@ export default function FAQAdmin() {
       const method = editingId ? 'PUT' : 'POST';
       const url = editingId ? `${API_BASE}/api/faqs/${editingId}` : `${API_BASE}/api/faqs`;
 
-      const res = await fetch(url, { 
-        method, 
-        mode: 'cors', 
-        credentials: 'include', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(formData), 
+      const res = await fetch(url, {
+        method,
+        mode: 'cors',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       });
 
       if (res.ok) {
@@ -116,12 +116,12 @@ export default function FAQAdmin() {
     [newFaqs[index], newFaqs[index - 1]] = [newFaqs[index - 1], newFaqs[index]];
 
     try {
-      await fetch(`${API_BASE}/api/faqs/reorder`, { 
-        method: 'POST', 
-        mode: 'cors', 
-        credentials: 'include', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ faqs: newFaqs.map(f => f.id) }), 
+      await fetch(`${API_BASE}/api/faqs/reorder`, {
+        method: 'POST',
+        mode: 'cors',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ faqs: newFaqs.map(f => f.id) }),
       });
       setFaqs(newFaqs);
     } catch (err) {
@@ -136,12 +136,12 @@ export default function FAQAdmin() {
     [newFaqs[index], newFaqs[index + 1]] = [newFaqs[index + 1], newFaqs[index]];
 
     try {
-      await fetch(`${API_BASE}/api/faqs/reorder`, { 
-        method: 'POST', 
-        mode: 'cors', 
-        credentials: 'include', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ faqs: newFaqs.map(f => f.id) }), 
+      await fetch(`${API_BASE}/api/faqs/reorder`, {
+        method: 'POST',
+        mode: 'cors',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ faqs: newFaqs.map(f => f.id) }),
       });
       setFaqs(newFaqs);
     } catch (err) {

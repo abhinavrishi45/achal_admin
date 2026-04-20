@@ -9,14 +9,23 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleLogin = (e) => {
     e.preventDefault();
     setIsLoading(true);
-    // Mock login behavior
-    setTimeout(() => {
-      router.push("/dashboard");
-    }, 800);
+    // Validate hardcoded admin credentials
+    if (email === "admin@goachal" && password === "goachalAdmin#co") {
+      setTimeout(() => {
+        setIsLoading(false);
+        router.push("/dashboard/front-page");
+      }, 800);
+    } else {
+      setTimeout(() => {
+        setIsLoading(false);
+        setError("Invalid email or password.");
+      }, 400);
+    }
   };
 
   return (
@@ -29,7 +38,7 @@ export default function LoginPage() {
         <div className="p-8">
           <div className="flex items-center justify-center mb-8">
             <div className="flex items-center space-x-3">
-             
+
               <span className="text-2xl font-bold text-gray-800 tracking-wide"> Go Achal - Admin</span>
             </div>
           </div>
@@ -38,6 +47,9 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome Back</h1>
             <p className="text-gray-500 text-sm">Please sign in to your admin account</p>
           </div>
+          {error && (
+            <div className="mb-4 text-sm text-red-600 text-center">{error}</div>
+          )}
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
@@ -49,7 +61,7 @@ export default function LoginPage() {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setError(''); }}
                   className="pl-10 w-full py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
                   placeholder="admin@Achal.com"
                   required
@@ -69,7 +81,7 @@ export default function LoginPage() {
                 <input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
                   className="pl-10 w-full py-2.5 bg-gray-50 border border-gray-200 text-gray-900 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
                   placeholder="••••••••"
                   required

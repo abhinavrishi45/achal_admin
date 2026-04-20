@@ -35,7 +35,7 @@ async function uploadFile(file) {
   });
   if (!res.ok) {
     let msg = `Upload failed (${res.status})`;
-    try { const j = await res.json(); msg = j.message || msg; } catch (_) {}
+    try { const j = await res.json(); msg = j.message || msg; } catch (_) { }
     throw new Error(msg);
   }
   const data = await res.json();
@@ -84,9 +84,8 @@ function Toast({ toast }) {
   if (!toast?.show) return null;
   const isErr = toast.type === "error";
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-sm font-medium shadow-sm mb-4 ${
-      isErr ? "bg-red-50 text-red-800 border-red-200" : "bg-green-50 text-green-800 border-green-200"
-    }`}>
+    <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-sm font-medium shadow-sm mb-4 ${isErr ? "bg-red-50 text-red-800 border-red-200" : "bg-green-50 text-green-800 border-green-200"
+      }`}>
       {isErr
         ? <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
         : <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -517,12 +516,12 @@ export default function AboutPage() {
       if (!recordId && result.id) setRecordId(result.id);
 
       // Sync saved display
-      if (section === "basicInfo")     setSavedBasicInfo({ title, intro });
+      if (section === "basicInfo") setSavedBasicInfo({ title, intro });
       if (section === "missionVision") setSavedMissionVision({ mission, vision });
-      if (section === "stats")         setSavedStats(stats.filter((s) => String(s.value ?? "").trim() || String(s.label ?? "").trim()));
-      if (section === "team")          setSavedTeam(team.filter((m) => m.name?.trim()));
-      if (section === "projects")      setSavedProjects(projects.filter((p) => p.title?.trim()));
-      if (section === "partners")      setSavedPartners(partners.filter((p) => p.name?.trim()));
+      if (section === "stats") setSavedStats(stats.filter((s) => String(s.value ?? "").trim() || String(s.label ?? "").trim()));
+      if (section === "team") setSavedTeam(team.filter((m) => m.name?.trim()));
+      if (section === "projects") setSavedProjects(projects.filter((p) => p.title?.trim()));
+      if (section === "partners") setSavedPartners(partners.filter((p) => p.name?.trim()));
 
       const labels = {
         basicInfo: "Basic Info", missionVision: "Mission & Vision",
