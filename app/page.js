@@ -18,6 +18,7 @@ export default function LoginPage() {
     if (email === "admin@goachal" && password === "goachalAdmin#co") {
       setTimeout(() => {
         setIsLoading(false);
+        try { localStorage.setItem("isAdminLoggedIn", "true"); } catch (err) {}
         router.push("/dashboard/front-page");
       }, 800);
     } else {
