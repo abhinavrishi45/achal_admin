@@ -7,8 +7,7 @@ import {
   Layers, BookOpen, Briefcase, MessageSquare,
   Megaphone, HelpCircle, Ticket
 } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://achal-backend-trial.tannis.in";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
 
 // ─── Upload helper (matches your working ServicePage upload exactly) ───────────
 const fileToBase64 = (file) => new Promise((res, rej) => {
@@ -27,12 +26,14 @@ async function uploadFile(file) {
   }
   const res = await fetch(`${API_BASE}/api/upload`, {
     method: 'POST',
+    mode: 'cors',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ filename: file.name, mimeType: file.type, data: dataUrl }),
   });
   if (!res.ok) {
     let msg = `Upload failed (${res.status})`;
-    try { const j = await res.json(); msg = j.message || msg; } catch (_) {}
+    try { const j = await res.json(); msg = j.message || msg; } catch (_) { }
     throw new Error(msg);
   }
   const data = await res.json();
@@ -254,7 +255,7 @@ export default function FrontPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/frontpage`);
+      const res = await fetch(`${API_BASE}/api/frontpage`, { method: 'GET', mode: 'cors', credentials: 'include' });
       if (!res.ok) throw new Error();
       const data = await res.json();
       const rec = Array.isArray(data) ? data[0] : data;
@@ -343,6 +344,8 @@ export default function FrontPage() {
       const method = recordId ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
+        mode: 'cors',
+        credentials: 'include',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });

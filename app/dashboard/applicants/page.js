@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Download, Trash2, Eye, X, Badge, Calendar, Mail, Phone, Briefcase, Users, TrendingUp } from "lucide-react";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
 
 export default function ApplicantsPage() {
   const [applicants, setApplicants] = useState([]);
@@ -28,7 +29,7 @@ export default function ApplicantsPage() {
 
   const loadJobs = async () => {
     try {
-      const res = await fetch("https://achal-backend-trial.tannis.in/api/jobs");
+      const res = await fetch(`${API_BASE}/api/jobs`, { method: 'GET', mode: 'cors', credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setJobs(Array.isArray(data) ? data : data.jobs || data.data || []);
@@ -42,7 +43,7 @@ export default function ApplicantsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("https://achal-backend-trial.tannis.in/api/jobs/applications");
+      const res = await fetch(`${API_BASE}/api/jobs/applications`, { method: 'GET', mode: 'cors', credentials: 'include' });
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
@@ -79,8 +80,10 @@ export default function ApplicantsPage() {
 
   const handleStatusChange = async (applicantId, newStatus) => {
     try {
-      const res = await fetch(`https://achal-backend-trial.tannis.in/api/jobs/applications/${applicantId}/status`, {
+      const res = await fetch(`${API_BASE}/api/jobs/applications/${applicantId}/status`, {
         method: "PUT",
+        mode: 'cors',
+        credentials: 'include',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
@@ -98,7 +101,7 @@ export default function ApplicantsPage() {
 
   const handleDownloadResume = async (applicantId, fileName) => {
     try {
-      const res = await fetch(`https://achal-backend-trial.tannis.in/api/jobs/applications/${applicantId}/resume/download`);
+      const res = await fetch(`${API_BASE}/api/jobs/applications/${applicantId}/resume/download`, { method: 'GET', mode: 'cors', credentials: 'include' });
       if (!res.ok) throw new Error("Failed to download resume");
 
       const blob = await res.blob();
@@ -119,8 +122,10 @@ export default function ApplicantsPage() {
   const handleDelete = async (applicantId) => {
     if (!window.confirm("Are you sure you want to delete this application?")) return;
     try {
-      const res = await fetch(`https://achal-backend-trial.tannis.in/api/jobs/applications/${applicantId}`, {
+      const res = await fetch(`${API_BASE}/api/jobs/applications/${applicantId}`, {
         method: "DELETE",
+        mode: 'cors',
+        credentials: 'include',
       });
       if (res.ok) {
         loadApplicants();

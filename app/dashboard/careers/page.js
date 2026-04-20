@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Edit2, Trash2, X, Check, Search, Briefcase, MapPin, Calendar } from "lucide-react";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
 
 export default function CareersPage() {
   const [jobs, setJobs] = useState([]);
@@ -30,7 +31,7 @@ export default function CareersPage() {
 
   const loadData = async () => {
     try {
-      const response = await fetch("https://achal-backend-trial.tannis.in/api/jobs");
+      const response = await fetch(`${API_BASE}/api/jobs`, { method: 'GET', mode: 'cors', credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         setJobs(Array.isArray(data) ? data : data.jobs || data.data || []);
@@ -40,7 +41,7 @@ export default function CareersPage() {
     }
     // Load services from backend; fall back to empty list on error
     try {
-      const res = await fetch("https://achal-backend-trial.tannis.in/api/services");
+      const res = await fetch(`${API_BASE}/api/services`, { method: 'GET', mode: 'cors', credentials: 'include' });
       if (res.ok) {
         const sdata = await res.json();
         setServices(Array.isArray(sdata) ? sdata : sdata.services || sdata.data || []);
@@ -86,8 +87,10 @@ export default function CareersPage() {
   const toggleStatus = async (job) => {
     try {
       const id = job.id || job._id;
-      const res = await fetch(`https://achal-backend-trial.tannis.in/api/jobs/${id}/open`, {
+      const res = await fetch(`${API_BASE}/api/jobs/${id}/open`, {
         method: "POST",
+        mode: 'cors',
+        credentials: 'include',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isOpen: !job.isOpen }) // send boolean state if required by ctrl
       });
@@ -104,7 +107,7 @@ export default function CareersPage() {
   const handleDelete = async (id) => {
     if (confirm("Are you sure you want to delete this job posting?")) {
       try {
-        await fetch(`https://achal-backend-trial.tannis.in/api/jobs/${id}`, { method: "DELETE" });
+        await fetch(`${API_BASE}/api/jobs/${id}`, { method: "DELETE", mode: 'cors', credentials: 'include' });
         loadData();
       } catch (error) {
         console.error("Failed to delete job:", error);
@@ -135,12 +138,14 @@ export default function CareersPage() {
 
     try {
       const url = editingId
-        ? `https://achal-backend-trial.tannis.in/api/jobs/${editingId}`
-        : "https://achal-backend-trial.tannis.in/api/jobs";
+        ? `${API_BASE}/api/jobs/${editingId}`
+        : `${API_BASE}/api/jobs`;
       const method = editingId ? "PUT" : "POST";
 
       const res = await fetch(url, {
         method,
+        mode: 'cors',
+        credentials: 'include',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(jobToSave)
       });

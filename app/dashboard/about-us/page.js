@@ -8,7 +8,7 @@ import {
   FileText, Target, BarChart2, X
 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://achal-backend-trial.tannis.in";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "https://achal-backend-trial.tannis.in";
 
 // ─── Upload helper ────────────────────────────────────────────────────────────
 const fileToBase64 = (file) =>
@@ -28,6 +28,8 @@ async function uploadFile(file) {
   }
   const res = await fetch(`${API_BASE}/api/upload`, {
     method: "POST",
+    mode: "cors",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ filename: file.name, mimeType: file.type, data: dataUrl }),
   });
@@ -381,7 +383,7 @@ export default function AboutPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/about`);
+      const res = await fetch(`${API_BASE}/api/about`, { method: 'GET', mode: 'cors', credentials: 'include' });
       if (!res.ok) throw new Error();
       const data = await res.json();
       const list = Array.isArray(data) ? data : [data];
@@ -502,6 +504,8 @@ export default function AboutPage() {
 
       const res = await fetch(url, {
         method,
+        mode: 'cors',
+        credentials: 'include',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });

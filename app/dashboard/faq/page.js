@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Trash2, Edit2, Plus, ChevronUp, ChevronDown, X } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://achal-backend-trial.tannis.in';
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
 
 export default function FAQAdmin() {
   const [faqs, setFaqs] = useState([]);
@@ -25,7 +24,7 @@ export default function FAQAdmin() {
   const loadFAQs = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/faqs`);
+      const res = await fetch(`${API_BASE}/api/faqs`, { method: 'GET', mode: 'cors', credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setFaqs(Array.isArray(data) ? data : []);
@@ -58,10 +57,12 @@ export default function FAQAdmin() {
       const method = editingId ? 'PUT' : 'POST';
       const url = editingId ? `${API_BASE}/api/faqs/${editingId}` : `${API_BASE}/api/faqs`;
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+      const res = await fetch(url, { 
+        method, 
+        mode: 'cors', 
+        credentials: 'include', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(formData), 
       });
 
       if (res.ok) {
@@ -98,7 +99,7 @@ export default function FAQAdmin() {
     if (!confirm('Delete this FAQ?')) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/faqs/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/api/faqs/${id}`, { method: 'DELETE', mode: 'cors', credentials: 'include' });
       if (res.ok) {
         loadFAQs();
       }
@@ -115,10 +116,12 @@ export default function FAQAdmin() {
     [newFaqs[index], newFaqs[index - 1]] = [newFaqs[index - 1], newFaqs[index]];
 
     try {
-      await fetch(`${API_BASE}/api/faqs/reorder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ faqs: newFaqs.map(f => f.id) }),
+      await fetch(`${API_BASE}/api/faqs/reorder`, { 
+        method: 'POST', 
+        mode: 'cors', 
+        credentials: 'include', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ faqs: newFaqs.map(f => f.id) }), 
       });
       setFaqs(newFaqs);
     } catch (err) {
@@ -133,10 +136,12 @@ export default function FAQAdmin() {
     [newFaqs[index], newFaqs[index + 1]] = [newFaqs[index + 1], newFaqs[index]];
 
     try {
-      await fetch(`${API_BASE}/api/faqs/reorder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ faqs: newFaqs.map(f => f.id) }),
+      await fetch(`${API_BASE}/api/faqs/reorder`, { 
+        method: 'POST', 
+        mode: 'cors', 
+        credentials: 'include', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ faqs: newFaqs.map(f => f.id) }), 
       });
       setFaqs(newFaqs);
     } catch (err) {

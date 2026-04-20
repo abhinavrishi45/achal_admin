@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Trash2, Eye, EyeOff, X } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://achal-backend-trial.tannis.in';
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
 
 export default function QuotesAdmin() {
   const [quotes, setQuotes] = useState([]);
@@ -15,7 +14,7 @@ export default function QuotesAdmin() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/quotes`);
+      const res = await fetch(`${API_BASE}/api/quotes`, { method: 'GET', mode: 'cors', credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setQuotes(Array.isArray(data) ? data : []);
@@ -28,6 +27,8 @@ export default function QuotesAdmin() {
     try {
       const res = await fetch(`${API_BASE}/api/quotes/${q.id}/view`, {
         method: 'POST',
+        mode: 'cors',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ viewed: !q.viewed }),
       });
@@ -38,7 +39,7 @@ export default function QuotesAdmin() {
   const handleDelete = async (id) => {
     if (!confirm('Delete quote?')) return;
     try {
-      const res = await fetch(`${API_BASE}/api/quotes/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/api/quotes/${id}`, { method: 'DELETE', mode: 'cors', credentials: 'include' });
       if (res.ok) load();
     } catch (err) { console.error('delete error', err); }
   };

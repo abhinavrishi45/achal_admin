@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Edit2, Trash2, X, Check, Search, FileText, Calendar, ShieldCheck } from "lucide-react";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
 
 export default function TermsPage() {
   const [termsList, setTermsList] = useState([]);
@@ -23,7 +24,7 @@ export default function TermsPage() {
     // Load services from backend; fall back to empty list on error
     const fetchServices = async () => {
       try {
-        const res = await fetch("https://achal-backend-trial.tannis.in/api/services");
+        const res = await fetch(`${API_BASE}/api/services`, { method: 'GET', mode: 'cors', credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setServices(Array.isArray(data) ? data : data.services || data.data || []);
@@ -41,7 +42,7 @@ export default function TermsPage() {
 
   const loadData = async () => {
     try {
-      const response = await fetch("https://achal-backend-trial.tannis.in/api/terms");
+      const response = await fetch(`${API_BASE}/api/terms`, { method: 'GET', mode: 'cors', credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         setTermsList(Array.isArray(data) ? data : data.terms || data.data || []);
@@ -83,7 +84,7 @@ export default function TermsPage() {
   const handleDelete = async (id) => {
     if (confirm("Are you sure you want to delete this Terms and Conditions policy?")) {
       try {
-        await fetch(`https://achal-backend-trial.tannis.in/api/terms/${id}`, { method: "DELETE" });
+        await fetch(`${API_BASE}/api/terms/${id}`, { method: "DELETE", mode: 'cors', credentials: 'include' });
         loadData();
       } catch (error) {
         console.error("Failed to delete term:", error);
@@ -108,12 +109,14 @@ export default function TermsPage() {
 
     try {
       const url = editingId
-        ? `https://achal-backend-trial.tannis.in/api/terms/${editingId}`
-        : "https://achal-backend-trial.tannis.in/api/terms";
+        ? `${API_BASE}/api/terms/${editingId}`
+        : `${API_BASE}/api/terms`;
       const method = editingId ? "PUT" : "POST";
 
       const res = await fetch(url, {
         method,
+        mode: 'cors',
+        credentials: 'include',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });

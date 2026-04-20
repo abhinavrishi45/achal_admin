@@ -8,8 +8,7 @@ import {
   DollarSign, Grid, Map, Info, Layout, ToggleLeft, ToggleRight,
   Check, X, Loader2, GripVertical, AlertCircle, Monitor, Smartphone
 } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://achal-backend-trial.tannis.in";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
 
 function safeParseJSON(v) {
   if (!v) return null;
@@ -506,6 +505,8 @@ async function uploadFile(file) {
   if (dataUrl.length > 1_200_000) { alert('Image too large. Please compress it first.'); return null; }
   const res = await fetch(`${API_BASE}/api/upload`, {
     method: 'POST',
+    mode: 'cors',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ filename: file.name, mimeType: file.type, data: dataUrl }),
   });
@@ -1142,14 +1143,14 @@ export default function ServicePageAdmin() {
     async function load() {
       if (!slug) return;
       try {
-        const svcRes = await fetch(`${API_BASE}/api/services`);
+        const svcRes = await fetch(`${API_BASE}/api/services`, { method: 'GET', mode: 'cors', credentials: 'include' });
         if (!svcRes.ok) { setLoading(false); return; }
         const list = await svcRes.json();
         const svc = Array.isArray(list) ? list.find(s => String(s.slug) === String(slug)) : null;
         if (!svc) { setLoading(false); return; }
         setService(svc);
 
-        const pageRes = await fetch(`${API_BASE}/api/service-pages/service/${svc.id}`);
+        const pageRes = await fetch(`${API_BASE}/api/service-pages/service/${svc.id}`, { method: 'GET', mode: 'cors', credentials: 'include' });
         if (pageRes.ok) {
           const page = await pageRes.json();
           hydratePage(page);
@@ -1273,11 +1274,11 @@ export default function ServicePageAdmin() {
 
       let saved;
       if (payload.id) {
-        const res = await fetch(`${API_BASE}/api/service-pages/${payload.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const res = await fetch(`${API_BASE}/api/service-pages/${payload.id}`, { method: 'PUT', mode: 'cors', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (!res.ok) throw await res.json();
         saved = await res.json();
       } else {
-        const res = await fetch(`${API_BASE}/api/service-pages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const res = await fetch(`${API_BASE}/api/service-pages`, { method: 'POST', mode: 'cors', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (!res.ok) throw await res.json();
         saved = await res.json();
       }
@@ -1285,7 +1286,7 @@ export default function ServicePageAdmin() {
       // re-fetch latest
       try {
         const id = saved?.id;
-        const ref = await fetch(`${API_BASE}/api/service-pages/${id || `service/${service.id}`}`, { headers: { 'Cache-Control': 'no-cache' } });
+        const ref = await fetch(`${API_BASE}/api/service-pages/${id || `service/${service.id}`}`, { method: 'GET', mode: 'cors', credentials: 'include', headers: { 'Cache-Control': 'no-cache' } });
         if (ref.ok) hydratePage(await ref.json());
       } catch (_) { }
 

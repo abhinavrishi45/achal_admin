@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Plus, Edit2, Trash2, X, Check, Search } from "lucide-react";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
 // import { getServices, saveService, deleteService } from "@/utils/mockDb"; // Removed mockDb usage for real API
 
 
@@ -25,7 +26,7 @@ export default function ServicesPage() {
 
   const loadServices = async () => {
     try {
-      const response = await fetch("https://achal-backend-trial.tannis.in/api/services");
+      const response = await fetch(`${API_BASE}/api/services`, { method: 'GET', mode: 'cors', credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         setServices(Array.isArray(data) ? data : data.services || []);
@@ -68,8 +69,10 @@ export default function ServicesPage() {
   const handleDelete = async (id) => {
     if (confirm("Are you sure you want to delete this service?")) {
       try {
-        const res = await fetch(`https://achal-backend-trial.tannis.in/api/services/${id}`, {
+        const res = await fetch(`${API_BASE}/api/services/${id}`, {
           method: "DELETE",
+          mode: 'cors',
+          credentials: 'include',
         });
         if (res.ok) {
           loadServices();
@@ -84,8 +87,10 @@ export default function ServicesPage() {
 
   const togglePublish = async (service) => {
     try {
-      const res = await fetch(`https://achal-backend-trial.tannis.in/api/services/${service.id}/publish`, {
+      const res = await fetch(`${API_BASE}/api/services/${service.id}/publish`, {
         method: "PATCH",
+        mode: 'cors',
+        credentials: 'include',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ publish: !service.isPublished }),
       });
@@ -109,12 +114,14 @@ export default function ServicesPage() {
 
     try {
       const url = editingId
-        ? `https://achal-backend-trial.tannis.in/api/services/${editingId}`
-        : "https://achal-backend-trial.tannis.in/api/services";
+        ? `${API_BASE}/api/services/${editingId}`
+        : `${API_BASE}/api/services`;
       const method = editingId ? "PUT" : "POST";
 
       const res = await fetch(url, {
         method,
+        mode: 'cors',
+        credentials: 'include',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(serviceToSave),
       });

@@ -28,6 +28,8 @@ const ICONS = {
   Droplet, Truck, BatteryCharging, Car, Utensils, FileText, Settings, Briefcase, Info, BriefcaseBusiness, PenTool, Home, LayoutDashboard, Users
 };
 
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [openDropdowns, setOpenDropdowns] = useState({});
@@ -37,7 +39,7 @@ export default function Sidebar() {
     // Load dynamically created services from API
     const load = async () => {
       try {
-        const response = await fetch("https://achal-backend-trial.tannis.in/api/services");
+        const response = await fetch(`${API_BASE}/api/services`, { method: 'GET', mode: 'cors', credentials: 'include' });
         if (response.ok) {
           const data = await response.json();
           setDynamicServices(Array.isArray(data) ? data : data.services || []);

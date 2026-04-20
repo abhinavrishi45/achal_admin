@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Edit2, Trash2, X, Check, Search, FileText, Calendar, User, Eye, EyeOff } from "lucide-react";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
 
 export default function BlogAdminPage() {
   const [blogs, setBlogs] = useState([]);
@@ -30,7 +31,7 @@ export default function BlogAdminPage() {
 
   const loadData = async () => {
     try {
-      const response = await fetch("https://achal-backend-trial.tannis.in/api/blogs");
+      const response = await fetch(`${API_BASE}/api/blogs`, { method: 'GET', mode: 'cors', credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         setBlogs(data);
@@ -83,7 +84,7 @@ export default function BlogAdminPage() {
 
   const deleteFromAPI = async (id) => {
     try {
-      const response = await fetch(`https://achal-backend-trial.tannis.in/api/blogs/${id}`, {
+      const response = await fetch(`${API_BASE}/api/blogs/${id}`, {
         method: "DELETE",
       });
       if (response.ok) {
@@ -104,8 +105,10 @@ export default function BlogAdminPage() {
 
   const updateBlogAPI = async (blogData) => {
     try {
-      const response = await fetch(`https://achal-backend-trial.tannis.in/api/blogs/${blogData.id}`, {
+      const response = await fetch(`${API_BASE}/api/blogs/${blogData.id}`, {
         method: "PUT",
+        mode: 'cors',
+        credentials: 'include',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(blogData),
       });
@@ -146,11 +149,13 @@ export default function BlogAdminPage() {
   const saveBlogToAPI = async (blogData, isUpdate) => {
     try {
       const url = isUpdate
-        ? `https://achal-backend-trial.tannis.in/api/blogs/${blogData.id}`
-        : "https://achal-backend-trial.tannis.in/api/blogs";
+        ? `${API_BASE}/api/blogs/${blogData.id}`
+        : `${API_BASE}/api/blogs`;
 
       const response = await fetch(url, {
         method: isUpdate ? "PUT" : "POST",
+        mode: 'cors',
+        credentials: 'include',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(blogData),
       });
