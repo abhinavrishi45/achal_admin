@@ -20,7 +20,7 @@ export default function Header() {
   }, []);
 
   function handleLogout() {
-    try { localStorage.removeItem("isAdminLoggedIn"); } catch (err) {}
+    try { localStorage.removeItem("isAdminLoggedIn"); } catch (err) { }
     router.push("/");
   }
   return (
