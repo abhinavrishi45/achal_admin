@@ -27,7 +27,11 @@ export default function TermsPage() {
         const res = await fetch(`${API_BASE}/api/services`, { method: 'GET', mode: 'cors', credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
-          setServices(Array.isArray(data) ? data : data.services || data.data || []);
+          const list = Array.isArray(data) ? data : data.services || data.data || [];
+          // Add a static "policy" service (id = 0) unless backend already provides it
+          const hasPolicy = Array.isArray(list) && list.some(s => String(s.id) === '0' || (s.name && String(s.name).toLowerCase() === 'policy'));
+          const finalList = hasPolicy ? list : [{ id: 0, name: 'policy' }, ...list];
+          setServices(finalList);
         } else {
           setServices([]);
         }
@@ -74,7 +78,8 @@ export default function TermsPage() {
     }
     setFormData({
       ...term,
-      serviceId: term.serviceId || "",
+      // Preserve zero (policy) as a valid value; only empty/null => empty string
+      serviceId: term.serviceId === null || term.serviceId === undefined ? "" : String(term.serviceId),
       title: term.title || "",
       effectiveDate: formattedDate || ""
     });
@@ -103,8 +108,12 @@ export default function TermsPage() {
     const payload = { ...formData };
 
     // Convert empty string serviceId back to null so the DB understands it correctly
-    if (!payload.serviceId) {
+    if (payload.serviceId === '') {
       payload.serviceId = null;
+    } else {
+      // ensure numeric serviceId when provided (preserve 0)
+      const n = Number(payload.serviceId);
+      payload.serviceId = Number.isNaN(n) ? null : n;
     }
 
     try {
@@ -136,7 +145,7 @@ export default function TermsPage() {
   };
 
   const getServiceName = (id) => {
-    if (!id) return "Global (All Services)";
+    if (id === null || id === undefined || id === '') return "Global (All Services)";
     const sv = Array.isArray(services) ? services.find((s) => String(s.id) === String(id)) : undefined;
     return sv ? sv.name : `Service Config #${id}`;
   };
@@ -212,7 +221,7 @@ export default function TermsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold ${!term.serviceId ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold ${(term.serviceId === null || term.serviceId === undefined || term.serviceId === '') ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
                         {getServiceName(term.serviceId)}
                       </span>
                     </td>
