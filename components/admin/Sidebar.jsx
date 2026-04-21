@@ -12,6 +12,7 @@ import {
   FileText,
   BriefcaseBusiness,
   PenTool,
+  X,
   ChevronDown,
   ChevronRight,
   Droplet,
@@ -30,7 +31,7 @@ const ICONS = {
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen = false, setMobileOpen = () => {} }) {
   const pathname = usePathname();
   const [openDropdowns, setOpenDropdowns] = useState({});
   const [dynamicServices, setDynamicServices] = useState([]);
@@ -87,14 +88,8 @@ export default function Sidebar() {
     }));
   };
 
-  return (
-    <aside className="w-64 bg-[#1e2336] text-gray-300 flex flex-col sticky top-0 h-screen">
-      <div className="p-6 flex items-center space-x-3">
-
-        <span className="text-white text-xl font-bold tracking-wide">Achal</span>
-      </div>
-
-      <div className="mt-4 px-4 pb-6 flex-1 overflow-y-auto sidebar-scroll">
+  const renderList = (isMobile = false) => (
+    <div className={`mt-4 px-4 pb-6 flex-1 overflow-y-auto sidebar-scroll ${isMobile ? 'max-h-full' : 'max-h-[65vh] md:max-h-none'}`}>
         <style>{`
           .sidebar-scroll::-webkit-scrollbar {
             width: 10px;
@@ -124,7 +119,7 @@ export default function Sidebar() {
                 <li key={index}>
                   <button
                     onClick={() => toggleDropdown(item.name)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${isOpen ? "bg-white/10 text-white" : "hover:bg-white/5 hover:text-white"
+                    className={`w-full flex items-center justify-between px-4 py-3 md:px-3 md:py-2.5 rounded-lg transition-colors ${isOpen ? "bg-white/10 text-white" : "hover:bg-white/5 hover:text-white"
                       }`}
                   >
                     <div className="flex items-center space-x-3">
@@ -141,7 +136,8 @@ export default function Sidebar() {
                           <li key={idx}>
                             <Link
                               href={child.href}
-                              className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${isChildLinkActive
+                              onClick={() => setMobileOpen(false)}
+                              className={`flex items-center space-x-3 px-4 py-3 md:px-3 md:py-2.5 rounded-lg transition-colors ${isChildLinkActive
                                 ? "bg-orange-500/20 text-orange-400"
                                 : "hover:bg-white/5 hover:text-white"
                                 }`}
@@ -162,7 +158,8 @@ export default function Sidebar() {
               <li key={index}>
                 <Link
                   href={item.href}
-                  className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${isActive
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex items-center space-x-3 px-4 py-3 md:px-3 md:py-2.5 rounded-lg transition-colors ${isActive
                     ? "bg-[#29324c] border-l-4 border-orange-500 text-white"
                     : "hover:bg-white/5 hover:text-white"
                     }`}
@@ -175,6 +172,33 @@ export default function Sidebar() {
           })}
         </ul>
       </div>
-    </aside>
+  );
+
+  return (
+    <>
+      {/* Desktop / large screens: persistent sidebar */}
+      <aside className="hidden md:flex md:w-64 bg-[#1e2336] text-gray-300 flex-col md:sticky md:top-0 md:h-screen">
+        <div className="p-4 md:p-6 flex items-center space-x-3">
+          <span className="text-white text-xl font-bold tracking-wide">Achal</span>
+        </div>
+        {renderList(false)}
+      </aside>
+
+      {/* Mobile overlay sidebar (toggleable) */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
+          <div className="relative w-72 max-w-full h-full bg-[#1e2336] text-gray-300 flex flex-col">
+            <div className="p-4 flex items-center justify-between">
+              <span className="text-white text-xl font-bold tracking-wide">Achal</span>
+              <button onClick={() => setMobileOpen(false)} className="p-2 text-gray-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {renderList(true)}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

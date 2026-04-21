@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Bell, Mail, Search, Menu } from "lucide-react";
 import Image from "next/image";
 
-export default function Header() {
+export default function Header({ onMenuClick }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const menuRef = useRef(null);
@@ -26,7 +26,7 @@ export default function Header() {
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 sticky top-0 z-10 w-full">
       <div className="flex items-center space-x-4">
-        <button className="md:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-md">
+        <button onClick={() => onMenuClick && onMenuClick()} className="md:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-md" aria-label="Open sidebar">
           <Menu className="w-5 h-5" />
         </button>
         {/* <div className="relative hidden md:block">
