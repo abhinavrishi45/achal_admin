@@ -28,10 +28,13 @@ import {
 const ICONS = {
   Droplet, Truck, BatteryCharging, Car, Utensils, FileText, Settings, Briefcase, Info, BriefcaseBusiness, PenTool, Home, LayoutDashboard, Users
 };
+import { MapPin } from "lucide-react";
+
+ICONS.MapPin = MapPin;
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
 
-export default function Sidebar({ mobileOpen = false, setMobileOpen = () => {} }) {
+export default function Sidebar({ mobileOpen = false, setMobileOpen = () => { } }) {
   const pathname = usePathname();
   const [openDropdowns, setOpenDropdowns] = useState({});
   const [dynamicServices, setDynamicServices] = useState([]);
@@ -72,6 +75,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen = () => {} }
       ],
     },
     { name: "About-Us", href: "/dashboard/about-us", icon: Info },
+    { name: "Map-Locations", href: "/dashboard/map-locations", icon: MapPin },
     { name: "Terms and Condition", href: "/dashboard/terms", icon: FileText },
     { name: "Careers", href: "/dashboard/careers", icon: BriefcaseBusiness },
     { name: "Applicants", href: "/dashboard/applicants", icon: Users },
@@ -90,7 +94,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen = () => {} }
 
   const renderList = (isMobile = false) => (
     <div className={`mt-4 px-4 pb-6 flex-1 overflow-y-auto sidebar-scroll ${isMobile ? 'max-h-full' : 'max-h-[65vh] md:max-h-none'}`}>
-        <style>{`
+      <style>{`
           .sidebar-scroll::-webkit-scrollbar {
             width: 10px;
           }
@@ -106,72 +110,72 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen = () => {} }
             background: rgba(150, 170, 210, 1);
           }
         `}</style>
-        <p className="text-xs font-semibold text-gray-500 mb-4 px-2 tracking-wider">GENERAL</p>
-        <ul className="space-y-1">
-          {sidebarItems.map((item, index) => {
-            const isActive = pathname === item.href;
+      <p className="text-xs font-semibold text-gray-500 mb-4 px-2 tracking-wider">GENERAL</p>
+      <ul className="space-y-1">
+        {sidebarItems.map((item, index) => {
+          const isActive = pathname === item.href;
 
-            if (item.children) {
-              const isChildActive = item.children.some(child => pathname === child.href);
-              const isOpen = openDropdowns[item.name] || isChildActive;
-
-              return (
-                <li key={index}>
-                  <button
-                    onClick={() => toggleDropdown(item.name)}
-                    className={`w-full flex items-center justify-between px-4 py-3 md:px-3 md:py-2.5 rounded-lg transition-colors ${isOpen ? "bg-white/10 text-white" : "hover:bg-white/5 hover:text-white"
-                      }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <item.icon className="w-5 h-5" />
-                      <span className="font-medium text-sm">{item.name}</span>
-                    </div>
-                    {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  </button>
-                  {isOpen && (
-                    <ul className="mt-1 ml-4 space-y-1 border-l border-gray-700 pl-2">
-                      {item.children.map((child, idx) => {
-                        const isChildLinkActive = pathname === child.href;
-                        return (
-                          <li key={idx}>
-                            <Link
-                              href={child.href}
-                              onClick={() => setMobileOpen(false)}
-                              className={`flex items-center space-x-3 px-4 py-3 md:px-3 md:py-2.5 rounded-lg transition-colors ${isChildLinkActive
-                                ? "bg-orange-500/20 text-orange-400"
-                                : "hover:bg-white/5 hover:text-white"
-                                }`}
-                            >
-                              <child.icon className="w-4 h-4 shrink-0" />
-                              <span className="font-medium text-sm truncate">{child.name}</span>
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </li>
-              );
-            }
+          if (item.children) {
+            const isChildActive = item.children.some(child => pathname === child.href);
+            const isOpen = openDropdowns[item.name] || isChildActive;
 
             return (
               <li key={index}>
-                <Link
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={`flex items-center space-x-3 px-4 py-3 md:px-3 md:py-2.5 rounded-lg transition-colors ${isActive
-                    ? "bg-[#29324c] border-l-4 border-orange-500 text-white"
-                    : "hover:bg-white/5 hover:text-white"
+                <button
+                  onClick={() => toggleDropdown(item.name)}
+                  className={`w-full flex items-center justify-between px-4 py-3 md:px-3 md:py-2.5 rounded-lg transition-colors ${isOpen ? "bg-white/10 text-white" : "hover:bg-white/5 hover:text-white"
                     }`}
                 >
-                  <item.icon className={`w-5 h-5 ${isActive ? "text-orange-500" : ""}`} />
-                  <span className="font-medium text-sm">{item.name}</span>
-                </Link>
+                  <div className="flex items-center space-x-3">
+                    <item.icon className="w-5 h-5" />
+                    <span className="font-medium text-sm">{item.name}</span>
+                  </div>
+                  {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                </button>
+                {isOpen && (
+                  <ul className="mt-1 ml-4 space-y-1 border-l border-gray-700 pl-2">
+                    {item.children.map((child, idx) => {
+                      const isChildLinkActive = pathname === child.href;
+                      return (
+                        <li key={idx}>
+                          <Link
+                            href={child.href}
+                            onClick={() => setMobileOpen(false)}
+                            className={`flex items-center space-x-3 px-4 py-3 md:px-3 md:py-2.5 rounded-lg transition-colors ${isChildLinkActive
+                              ? "bg-orange-500/20 text-orange-400"
+                              : "hover:bg-white/5 hover:text-white"
+                              }`}
+                          >
+                            <child.icon className="w-4 h-4 shrink-0" />
+                            <span className="font-medium text-sm truncate">{child.name}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </li>
             );
-          })}
-        </ul>
-      </div>
+          }
+
+          return (
+            <li key={index}>
+              <Link
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center space-x-3 px-4 py-3 md:px-3 md:py-2.5 rounded-lg transition-colors ${isActive
+                  ? "bg-[#29324c] border-l-4 border-orange-500 text-white"
+                  : "hover:bg-white/5 hover:text-white"
+                  }`}
+              >
+                <item.icon className={`w-5 h-5 ${isActive ? "text-orange-500" : ""}`} />
+                <span className="font-medium text-sm">{item.name}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 
   return (
