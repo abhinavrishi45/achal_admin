@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Edit2, Save, Loader2, MapPin } from "lucide-react";
-const GM_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+import { Plus, Trash2, Edit2, Save, Loader2 } from "lucide-react";
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://achal-backend-trial.tannis.in';
 
 const inputCls = "w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-gray-50 text-gray-800 text-sm";
@@ -62,51 +61,10 @@ export default function MapLocations() {
     e.preventDefault();
     setSaving(true);
     try {
-      // Normalize coordinates and geocode if needed
-      let latv = form.lat != null && form.lat !== '' ? parseFloat(form.lat) : NaN;
-      let lngv = form.lng != null && form.lng !== '' ? parseFloat(form.lng) : NaN;
-
-      const needsGeocode = !isFinite(latv) || !isFinite(lngv);
-      if (needsGeocode) {
-        const query = (form.address || form.name || '').trim();
-        if (query && GM_API_KEY) {
-          try {
-            const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${GM_API_KEY}`);
-            if (geoRes.ok) {
-              const geoJson = await geoRes.json();
-              if (geoJson.status === 'OK' && Array.isArray(geoJson.results) && geoJson.results.length > 0) {
-                const loc = geoJson.results[0].geometry.location;
-                latv = parseFloat(loc.lat);
-                lngv = parseFloat(loc.lng);
-                setForm(f => ({ ...f, lat: String(latv), lng: String(lngv) }));
-                showToast('Location resolved via Geocoding');
-              } else {
-                showToast('Geocoding: no results found for query', 'error');
-                setSaving(false);
-                return;
-              }
-            } else {
-              showToast('Geocoding request failed', 'error');
-              setSaving(false);
-              return;
-            }
-          } catch (gerr) {
-            console.error('Geocode error', gerr);
-            showToast('Geocoding error', 'error');
-            setSaving(false);
-            return;
-          }
-        } else {
-          showToast('Provide latitude/longitude or a place/address to geocode', 'error');
-          setSaving(false);
-          return;
-        }
-      }
-
       const payload = {
         name: form.name,
-        lat: latv,
-        lng: lngv,
+        lat: parseFloat(form.lat),
+        lng: parseFloat(form.lng),
         address: form.address,
         description: form.description,
         isPublished: !!form.isPublished,
@@ -129,27 +87,6 @@ export default function MapLocations() {
       showToast('Save failed', 'error');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleLocate = async () => {
-    const query = (form.address || form.name || '').trim();
-    if (!query) { showToast('Enter a place name or address to locate', 'error'); return; }
-    if (!GM_API_KEY) { showToast('Google Maps API key not set', 'error'); return; }
-    try {
-      const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${GM_API_KEY}`);
-      if (!geoRes.ok) { showToast('Geocoding request failed', 'error'); return; }
-      const geoJson = await geoRes.json();
-      if (geoJson.status === 'OK' && Array.isArray(geoJson.results) && geoJson.results.length > 0) {
-        const loc = geoJson.results[0].geometry.location;
-        setForm(f => ({ ...f, lat: String(loc.lat), lng: String(loc.lng) }));
-        showToast('Coordinates filled from Geocoding');
-      } else {
-        showToast('No results found', 'error');
-      }
-    } catch (err) {
-      console.error('Locate error', err);
-      showToast('Geocoding failed', 'error');
     }
   };
 
@@ -193,7 +130,6 @@ export default function MapLocations() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Address (optional)</label>
             <input className={inputCls} value={form.address} onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} />
-            <p className="text-xs text-gray-400 mt-1">You can enter an airport or place name (for example: "Chhatrapati Shivaji Intl Airport") and click <strong>Locate</strong> to fill coordinates.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Published</label>
@@ -214,9 +150,6 @@ export default function MapLocations() {
         <div className="mt-4 flex items-center gap-3">
           <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
             {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : <><Save className="w-4 h-4" /> Save</>}
-          </button>
-          <button type="button" onClick={handleLocate} disabled={saving} className="px-3 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors flex items-center gap-2 text-sm">
-            <MapPin className="w-4 h-4" /> Locate
           </button>
           {editingId && (
             <button type="button" onClick={() => { setForm(blank); setEditingId(null); }} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm">Cancel</button>
